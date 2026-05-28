@@ -193,3 +193,6 @@ dataset/
 datasets/
 data/
 runs/
+天衍·生境 (EcoNexus)  —— 基于多模态融合的农业生态系统推演大脑/
+node_modules/
+.env.local

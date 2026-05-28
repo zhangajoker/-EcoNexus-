@@ -1,0 +1,15 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer components {
+  /* 全局生态卡片样式：自带毛玻璃、深色面板、主题边框和阴影 */
+  .eco-card {
+    @apply bg-eco-panel backdrop-blur-md p-6 rounded-xl border border-eco-border shadow-lg shadow-black/50 transition-all duration-300;
+  }
+}
+
+body {
+  /* 设置全站默认底色，防止拖拽时出现白边 */
+  @apply bg-eco-dark text-white;
+}
