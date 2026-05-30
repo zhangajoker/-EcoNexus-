@@ -20,7 +20,7 @@
             <div class="text-[10px] text-gray-400 font-mono mb-1">REAL-TIME TELEMETRY</div>
             <div class="text-xs text-white flex items-center gap-2">
               <span class="w-1.5 h-1.5 bg-eco-primary rounded-full animate-pulse"></span>
-              YOLOv8 视觉热力网格持续扫描中...
+              全局态势雷达网格持续扫描中...
             </div>
           </div>
           <div ref="mapRef" class="w-full h-full flex-1 z-10 cursor-crosshair"></div>
@@ -85,58 +85,56 @@
           <div class="h-4 w-px bg-white/10"></div>
           <h3 class="text-xl font-bold tracking-wider flex items-center gap-2">
             <span class="w-1.5 h-5 bg-eco-primary rounded-full"></span>
-            {{ selectedField?.name }} 全息数据矩阵
+            {{ selectedField?.name }} 全息生境舱
           </h3>
         </div>
         <span class="text-xs font-mono text-gray-500">SECURE LINK AT REAL-TIME</span>
       </div>
 
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1">
-        <div class="lg:col-span-2 bg-black/40 border border-white/5 rounded-2xl relative overflow-hidden shadow-2xl h-[620px]">
-          <div v-if="!localDetailBg" class="w-full h-full opacity-30" style="background-image: linear-gradient(#10b981 1px, transparent 1px), linear-gradient(90deg, #10b981 1px, transparent 1px); background-size: 40px 40px;"></div>
 
-          <img v-else :src="localDetailBg"
-               alt="Local Terrace Imagery"
-               class="w-full h-full object-cover opacity-60 object-center mix-blend-luminosity" />
+        <div class="lg:col-span-2 bg-black/40 border border-white/5 rounded-2xl relative overflow-hidden shadow-2xl h-[620px] group">
 
-          <div class="absolute inset-0 bg-gradient-to-t from-[#0a0c0a] via-transparent to-transparent z-10"></div>
+          <img :src="currentVisionImg || fallbackImg"
+               alt="Terrace Imagery"
+               class="w-full h-full object-cover object-center transition-all duration-700"
+               :class="isScanning ? 'opacity-30 grayscale blur-sm' : 'opacity-80 mix-blend-luminosity'" />
+
+          <div class="absolute inset-0 bg-gradient-to-t from-[#0a0c0a] via-transparent to-transparent z-10 pointer-events-none"></div>
           <div class="absolute inset-0 border-[20px] border-black/20 pointer-events-none z-10"></div>
-          <div class="absolute top-10 left-10 text-[10px] font-mono text-eco-primary/80 bg-black/60 border border-eco-primary/30 p-2 rounded backdrop-blur">
+
+          <div class="absolute top-10 left-10 text-[10px] font-mono text-eco-primary/80 bg-black/60 border border-eco-primary/30 p-2 rounded backdrop-blur z-20">
             <div>CAM_INDEX: {{ selectedField?.id }}_RGB</div>
-            <div>FPS: 24.00 | H.265</div>
-            <div>TERRAIN: 西南喀斯特地貌/山地台田</div>
+            <div>STATUS: {{ isScanning ? 'ANALYZING...' : 'ONLINE' }}</div>
+            <div v-if="visionDetectCount !== null" class="mt-1 pt-1 border-t border-eco-primary/30" :class="visionDetectCount > 0 ? 'text-yellow-400' : 'text-emerald-400'">
+              YOLOv8_OBJECTS: {{ visionDetectCount }}
+            </div>
           </div>
-          <div v-if="selectedField?.status !== '健康'"
-               class="absolute top-[35%] left-[45%] w-32 h-32 rounded-full border-2 border-dashed border-red-500 bg-red-500/10 animate-pulse flex items-center justify-center z-10 shadow-[0_0_30px_rgba(239,68,68,0.4)]">
-            <span class="text-[10px] font-mono font-bold text-red-400 bg-black/80 px-1.5 py-0.5 rounded border border-red-500/30">异常长势热区</span>
+
+          <div v-if="isScanning" class="absolute inset-0 z-20 pointer-events-none">
+            <div class="w-full h-1 bg-eco-primary shadow-[0_0_20px_#34d399] animate-radar-scan absolute top-0"></div>
+            <div class="absolute inset-0 bg-[linear-gradient(rgba(52,211,153,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(52,211,153,0.05)_1px,transparent_1px)] bg-[size:40px_40px]"></div>
           </div>
+
+          <div class="absolute bottom-8 right-8 z-30">
+            <input type="file" ref="fileInput" @change="uploadToYOLOv8" accept="image/*" class="hidden" />
+            <button @click="$refs.fileInput.click()"
+                    :disabled="isScanning"
+                    class="bg-black/80 border border-eco-primary hover:bg-eco-primary/20 text-eco-primary font-mono text-xs px-6 py-3 rounded-none backdrop-blur transition-all flex items-center gap-2 group-hover:opacity-100 opacity-40">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+              {{ isScanning ? '神经网格计算中...' : '启动 AI 靶向诊断' }}
+            </button>
+          </div>
+
         </div>
 
         <div class="lg:col-span-1 space-y-4 h-[620px] overflow-y-auto pr-1 custom-scrollbar font-mono">
           <div class="bg-black/50 p-5 rounded-2xl border border-white/10">
             <h4 class="text-xs text-gray-400 mb-4 tracking-widest uppercase flex justify-between items-center">
-              <span>● 土壤理化分析 (NPK)</span>
-              <span class="text-eco-primary text-[10px]">UNIT: mg/kg</span>
+              <span>● 生境要素遥测 (IoT)</span>
+              <span class="text-emerald-400 animate-pulse text-[10px]">SYNCED</span>
             </h4>
-            <div class="space-y-3 text-sm">
-              <div class="flex justify-between items-center bg-white/5 p-3 rounded border border-white/5">
-                <span class="text-gray-400">土壤全氮 (N)</span>
-                <span class="text-white font-bold text-lg">{{ selectedField?.n }}</span>
-              </div>
-              <div class="flex justify-between items-center bg-white/5 p-3 rounded border border-white/5">
-                <span class="text-gray-400">有效磷 (P)</span>
-                <span class="text-white font-bold text-lg">{{ selectedField?.p }}</span>
-              </div>
-              <div class="flex justify-between items-center bg-white/5 p-3 rounded border border-white/5">
-                <span class="text-gray-400">速效钾 (K)</span>
-                <span class="text-white font-bold text-lg">{{ selectedField?.k }}</span>
-              </div>
-            </div>
-          </div>
-
-          <div class="bg-black/50 p-5 rounded-2xl border border-white/10">
-            <h4 class="text-xs text-gray-400 mb-4 tracking-widest uppercase">● 微气象与墒情要素</h4>
-            <div class="grid grid-cols-2 gap-3 text-xs">
+            <div class="grid grid-cols-2 gap-3 text-xs mb-3">
               <div class="bg-white/5 p-3 rounded border border-white/5">
                 <div class="text-gray-500 mb-1">容积含水率</div>
                 <div class="text-white font-bold text-base">{{ selectedField?.moisture }}%</div>
@@ -145,27 +143,49 @@
                 <div class="text-gray-500 mb-1">地表绝对温度</div>
                 <div class="text-white font-bold text-base">{{ selectedField?.temp }}°C</div>
               </div>
-              <div class="bg-white/5 p-3 rounded border border-white/5">
-                <div class="text-gray-500 mb-1">叶片SPAD值</div>
-                <div class="text-white font-bold text-base">{{ selectedField?.spad }}</div>
+            </div>
+            <div class="space-y-2 text-xs">
+              <div class="flex justify-between items-center bg-white/5 p-2 rounded border border-white/5">
+                <span class="text-gray-400">全氮 (N)</span><span class="text-white font-bold">{{ selectedField?.n }} <span class="text-[10px] text-gray-600">mg/kg</span></span>
               </div>
-              <div class="bg-white/5 p-3 rounded border border-white/5">
-                <div class="text-gray-500 mb-1">局部虫情指数</div>
-                <div class="text-white font-bold text-base" :class="selectedField?.pestIndex === '高'?'text-red-400':''">{{ selectedField?.pestIndex }}</div>
+              <div class="flex justify-between items-center bg-white/5 p-2 rounded border border-white/5">
+                <span class="text-gray-400">有效磷 (P)</span><span class="text-white font-bold">{{ selectedField?.p }} <span class="text-[10px] text-gray-600">mg/kg</span></span>
               </div>
             </div>
           </div>
 
-          <div class="bg-eco-primary/5 p-4 rounded-2xl border border-eco-primary/20">
-            <h4 class="text-xs text-eco-primary font-bold mb-2 flex items-center gap-1.5">
-              <span>⚡</span> 天衍模型生产建议
+          <div class="bg-eco-primary/5 p-5 rounded-2xl border transition-all duration-500"
+               :class="visionDetectCount > 0 ? 'border-yellow-500/50 bg-yellow-900/10' : (visionDetectCount === 0 ? 'border-emerald-500/50 bg-emerald-900/10' : 'border-eco-primary/20')">
+            <h4 class="text-xs font-bold mb-3 flex items-center gap-2" :class="visionDetectCount > 0 ? 'text-yellow-400' : 'text-eco-primary'">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+              天衍中枢调度策略
             </h4>
-            <p v-if="selectedField?.status === '健康'" class="text-xs text-gray-300 leading-relaxed font-sans">
-              该山地台田整体养分均衡，多光谱长势饱满。推荐维持现有自适应微型滴灌排程，当前无需实施化学药剂或物理追肥。
+
+            <p v-if="visionDetectCount === null" class="text-xs text-gray-400 leading-relaxed font-sans">
+              当前区域传感数据均值正常。等待边缘视觉雷达进一步切片确认，以防发生“漏斗型”隐蔽病虫害聚集。
             </p>
-            <p v-else class="text-xs text-red-300 leading-relaxed font-sans">
-              由于当前氮磷比（N:P）低于标准线且浅层墒情严重匮乏，系统判定该区块生长系数低于基准。建议批准开启水肥一体化二级阀门定向追补。
-            </p>
+
+            <div v-else-if="visionDetectCount === 0" class="space-y-3">
+              <div class="text-xs text-emerald-300 leading-relaxed font-sans border-l-2 border-emerald-500 pl-3">
+                <span class="font-bold block mb-1 font-mono">STATUS: SECURE & CLEAR</span>
+                YOLOv8 边缘推理完毕。当前生境切片未发现已知病虫害或异常目标聚集。
+              </div>
+              <div class="text-[10px] text-gray-500 font-mono mt-2 flex items-center gap-2">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                系统继续维持现有水肥自适应滴灌排程。
+              </div>
+            </div>
+
+            <div v-else class="space-y-3">
+              <div class="text-xs text-yellow-300 leading-relaxed font-sans border-l-2 border-yellow-500 pl-3">
+                <span class="font-bold block mb-1 font-mono">WARNING: ABNORMAL ENTITIES DETECTED</span>
+                YOLOv8 边缘推理完毕。在当前切片中发现 <strong class="text-white">{{ visionDetectCount }}</strong> 处异常聚集特征。
+              </div>
+              <div class="text-[10px] text-gray-500 font-mono mt-2 flex items-center gap-2">
+                <span class="w-1.5 h-1.5 rounded-full bg-yellow-500 animate-ping"></span>
+                已自动将坐标数据下发至 P3 植保无人机群，准备实施靶向物理压制。
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -189,41 +209,39 @@ const warpCanvas = ref(null);
 let warpFrameId = null;
 let warpParticles = [];
 
-// ======================= 图片资源动态加载区 =======================
-// 这里使用 try-catch 防止因找不到文件导致编译报错。
-// 如果你在 src/assets/ 下放了图片，系统会自动加载；如果没有，会自动降级为极简代码网格。
-let localMapBg = null;
-let localDetailBg = null;
-try {
-  localMapBg = new URL('../../assets/map_bg.jpg', import.meta.url).href;
-  localDetailBg = new URL('../../assets/detail_bg.jpg', import.meta.url).href;
-} catch (e) {
-  console.warn("本地图片未找到，将使用默认科幻网格底图。请在 src/assets/ 下放置 map_bg.jpg 和 detail_bg.jpg");
-}
-// ==================================================================
+// ======================= 机器视觉协同状态 =======================
+const fallbackImg = "https://images.pexels.com/photos/259280/pexels-photo-259280.jpeg?auto=compress&cs=tinysrgb&w=1600";
+const currentVisionImg = ref(null);
+const isScanning = ref(false);
+const visionDetectCount = ref(null);
+const fileInput = ref(null);
 
 watch(viewMode, (newVal) => {
   if (newVal === 'map') {
     nextTick(() => {
-      if (myChart != null && myChart.dispose) {
-        myChart.dispose();
-      }
+      if (myChart != null && myChart.dispose) myChart.dispose();
       initMap();
     });
   }
 });
 
+const resetDetailState = () => {
+  currentVisionImg.value = null;
+  visionDetectCount.value = null;
+  isScanning.value = false;
+};
+
 const triggerShuttle = (field) => {
   selectedField.value = field;
   viewMode.value = 'shuttle';
   showShutter.value = false;
+  resetDetailState();
 
   nextTick(() => { initWarpDrive(); });
 
   setTimeout(() => {
     showShutter.value = true;
     viewMode.value = 'detail';
-    // ⚠️ 【优化点2】：此处取消动画，节约性能
     if (warpFrameId) cancelAnimationFrame(warpFrameId);
   }, 2200);
 
@@ -231,6 +249,42 @@ const triggerShuttle = (field) => {
     showShutter.value = false;
   }, 3000);
 };
+
+// ==================== YOLOv8 边缘推理核心调用 ====================
+const uploadToYOLOv8 = async (event) => {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  isScanning.value = true;
+  visionDetectCount.value = null;
+
+  const formData = new FormData();
+  formData.append('file', file);
+
+  try {
+    const response = await fetch('http://127.0.0.1:8000/api/vision/analyze', {
+      method: 'POST',
+      body: formData
+    });
+
+    if (!response.ok) throw new Error('视觉推理引擎异常');
+
+    const result = await response.json();
+
+    // 延迟 1.5 秒以展示逼真的雷达扫描动效
+    setTimeout(() => {
+      currentVisionImg.value = result.image_data;
+      visionDetectCount.value = result.detected_count;
+      isScanning.value = false;
+    }, 1500);
+
+  } catch (error) {
+    console.error('YOLOv8 通信失败:', error);
+    alert('中枢连接丢失，请检查 FastAPI 服务状态。');
+    isScanning.value = false;
+  }
+};
+
 
 const initWarpDrive = () => {
   const canvas = warpCanvas.value;
@@ -296,7 +350,6 @@ const initWarpDrive = () => {
       } else {
         ctx.strokeStyle = `rgba(52, 211, 153, ${depthAlpha})`;
       }
-
       ctx.stroke();
     }
     warpFrameId = requestAnimationFrame(renderWarp);
@@ -315,47 +368,18 @@ const initWarpDrive = () => {
 
 const initMap = () => {
   if (!mapRef.value || fields.value.length === 0) return;
-
   myChart = echarts.init(mapRef.value);
-
   const scatterData = fields.value.map(f => {
     let color = '#10b981';
     let symbolSize = 16;
     if (f.status === '高危') { color = '#ef4444'; symbolSize = 24; }
     if (f.status === '预警') { color = '#eab308'; symbolSize = 20; }
-
-    return {
-      name: f.name,
-      value: [f.x, f.y],
-      itemStyle: { color: color },
-      symbolSize: symbolSize,
-      rawData: f
-    };
+    return { name: f.name, value: [f.x, f.y], itemStyle: { color: color }, symbolSize: symbolSize, rawData: f };
   });
 
   const heatData = fields.value.filter(f => f.status === '高危').map(f => ({
-    name: f.name,
-    value: [f.x, f.y],
-    itemStyle: { color: 'rgba(239, 68, 68, 0.15)' },
-    symbolSize: 150
+    name: f.name, value: [f.x, f.y], itemStyle: { color: 'rgba(239, 68, 68, 0.15)' }, symbolSize: 150
   }));
-
-  // ECharts 背景配置
-  let graphicElements = [];
-  if (localMapBg) {
-    graphicElements.push({
-      type: 'image',
-      style: { image: localMapBg, width: 1000, height: 600, opacity: 0.35 },
-      left: 'center', top: 'center'
-    });
-  } else {
-    // 纯代码绘制备用底图雷达网格
-    graphicElements.push({
-      type: 'rect',
-      style: { fill: 'rgba(16, 185, 129, 0.03)' },
-      shape: { x: 0, y: 0, width: 1000, height: 600 }
-    });
-  }
 
   const option = {
     backgroundColor: 'transparent',
@@ -363,25 +387,25 @@ const initMap = () => {
       backgroundColor: 'rgba(10, 12, 10, 0.95)',
       borderColor: 'rgba(255,255,255,0.08)',
       textStyle: { color: '#fff', fontSize: 11, fontFamily: 'monospace' },
-      formatter: (p) => p.seriesName === '热力' ? '' : `<div>${p.name} [点击下钻全息剖析]</div>`
+      formatter: (p) => p.seriesName === '热力' ? '' : `<div>${p.name} [点击进入全息生境]</div>`
     },
-    graphic: { elements: graphicElements },
+    graphic: {
+      elements: [{
+        type: 'image',
+        style: { image: 'https://images.pexels.com/photos/2832039/pexels-photo-2832039.jpeg?auto=compress&cs=tinysrgb&w=1200', width: 1000, height: 600, opacity: 0.25 },
+        left: 'center', top: 'center'
+      }]
+    },
     xAxis: { show: false, min: 0, max: 1000 },
     yAxis: { show: false, min: 0, max: 600, inverse: true },
     series: [
       { name: '热力', type: 'scatter', data: heatData, silent: true, itemStyle: { shadowBlur: 40, shadowColor: '#ef4444' } },
-      {
-        name: '节点', type: 'effectScatter', coordinateSystem: 'cartesian2d', data: scatterData,
-        showEffectOn: 'render', rippleEffect: { brushType: 'stroke', scale: 4 },
-        label: { show: true, formatter: '{b}', position: 'right', color: '#ccc', fontSize: 10 }
-      }
+      { name: '节点', type: 'effectScatter', coordinateSystem: 'cartesian2d', data: scatterData, showEffectOn: 'render', rippleEffect: { brushType: 'stroke', scale: 4 }, label: { show: true, formatter: '{b}', position: 'right', color: '#ccc', fontSize: 10 } }
     ]
   };
 
   myChart.setOption(option);
-  myChart.on('click', (p) => {
-    if (p.seriesName === '节点') triggerShuttle(p.data.rawData);
-  });
+  myChart.on('click', (p) => { if (p.seriesName === '节点') triggerShuttle(p.data.rawData); });
 };
 
 const fetchFieldsData = async () => {
@@ -390,9 +414,7 @@ const fetchFieldsData = async () => {
     if (!response.ok) throw new Error('Network response was not ok');
     fields.value = await response.json();
     nextTick(() => { initMap(); });
-  } catch (error) {
-    console.error('获取数据失败:', error);
-  }
+  } catch (error) { console.error('获取数据失败:', error); }
 };
 
 onMounted(() => {
@@ -403,30 +425,28 @@ onMounted(() => {
 onUnmounted(() => {
   window.removeEventListener('resize', () => { if (myChart) myChart.resize(); });
   if (myChart) myChart.dispose();
-  // ⚠️ 【优化点3】：生命周期结束时，清理可能的残余动画帧，防止内存泄漏卡死
   if (warpFrameId) cancelAnimationFrame(warpFrameId);
 });
 </script>
 
 <style scoped>
-/* 此处保留你原有的 CSS 动画样式，无需更改 */
-.view-animate {
-  animation: fadeIn 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(4px); }
-  to { opacity: 1; transform: translateY(0); }
-}
+.view-animate { animation: fadeIn 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
 
 .custom-scrollbar::-webkit-scrollbar { width: 4px; }
 .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
 .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(52, 211, 153, 0.2); border-radius: 4px; }
 
-.warp-hud-animate {
-  animation: hudScale 2.2s cubic-bezier(0.1, 0.8, 0.2, 1) forwards;
+/* 机器视觉雷达光栅特效 */
+.animate-radar-scan {
+  animation: radarScan 2.5s cubic-bezier(0.4, 0, 0.2, 1) infinite alternate;
+}
+@keyframes radarScan {
+  0% { transform: translateY(0); opacity: 0.8; }
+  100% { transform: translateY(620px); opacity: 0.2; }
 }
 
+.warp-hud-animate { animation: hudScale 2.2s cubic-bezier(0.1, 0.8, 0.2, 1) forwards; }
 @keyframes hudScale {
   0% { transform: scale(0.8); opacity: 0; }
   10% { transform: scale(1.02); opacity: 1; }
@@ -439,39 +459,17 @@ onUnmounted(() => {
   text-shadow: 0 0 15px rgba(52, 211, 153, 0.8);
   animation: glitch-skew 2.2s cubic-bezier(0.25, 0.46, 0.45, 0.94) both infinite;
 }
-
 @keyframes glitch-skew {
-  0% { transform: skew(0deg); }
-  2% { transform: skew(-4deg); }
-  4% { transform: skew(4deg); }
-  6% { transform: skew(0deg); }
-  100% { transform: skew(0deg); }
+  0% { transform: skew(0deg); } 2% { transform: skew(-4deg); } 4% { transform: skew(4deg); }
+  6% { transform: skew(0deg); } 100% { transform: skew(0deg); }
 }
 
-.shutter-top-anim {
-  animation: shutterUpOpen 0.8s cubic-bezier(0.85, 0, 0.15, 1) forwards;
-}
+.shutter-top-anim { animation: shutterUpOpen 0.8s cubic-bezier(0.85, 0, 0.15, 1) forwards; }
+.shutter-bottom-anim { animation: shutterDownOpen 0.8s cubic-bezier(0.85, 0, 0.15, 1) forwards; }
+.shutter-line-anim { animation: lineLaserSplit 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards; }
 
-.shutter-bottom-anim {
-  animation: shutterDownOpen 0.8s cubic-bezier(0.85, 0, 0.15, 1) forwards;
-}
-
-.shutter-line-anim {
-  animation: lineLaserSplit 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
-}
-
-@keyframes shutterUpOpen {
-  0% { transform: translateY(0); }
-  15% { transform: translateY(0); }
-  100% { transform: translateY(-100%); }
-}
-
-@keyframes shutterDownOpen {
-  0% { transform: translateY(0); }
-  15% { transform: translateY(0); }
-  100% { transform: translateY(100%); }
-}
-
+@keyframes shutterUpOpen { 0%, 15% { transform: translateY(0); } 100% { transform: translateY(-100%); } }
+@keyframes shutterDownOpen { 0%, 15% { transform: translateY(0); } 100% { transform: translateY(100%); } }
 @keyframes lineLaserSplit {
   0% { transform: translateY(-50%) scaleX(0); opacity: 0; }
   15% { transform: translateY(-50%) scaleX(1); opacity: 1; }
