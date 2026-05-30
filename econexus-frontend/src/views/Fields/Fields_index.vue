@@ -51,7 +51,6 @@
 
     <div v-if="viewMode === 'shuttle'" class="fixed inset-0 z-[9999] bg-[#050705] flex flex-col items-center justify-center overflow-hidden">
       <canvas ref="warpCanvas" class="absolute inset-0 w-full h-full z-0"></canvas>
-
       <div class="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_20%,#050705_100%)] z-10 pointer-events-none"></div>
 
       <div class="relative z-20 text-center font-mono space-y-4 warp-hud-animate">
@@ -94,9 +93,12 @@
 
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1">
         <div class="lg:col-span-2 bg-black/40 border border-white/5 rounded-2xl relative overflow-hidden shadow-2xl h-[620px]">
-          <img src="https://images.pexels.com/photos/259280/pexels-photo-259280.jpeg?auto=compress&cs=tinysrgb&w=1600"
-               alt="Southwest China Terrace Imagery"
+          <div v-if="!localDetailBg" class="w-full h-full opacity-30" style="background-image: linear-gradient(#10b981 1px, transparent 1px), linear-gradient(90deg, #10b981 1px, transparent 1px); background-size: 40px 40px;"></div>
+
+          <img v-else :src="localDetailBg"
+               alt="Local Terrace Imagery"
                class="w-full h-full object-cover opacity-60 object-center mix-blend-luminosity" />
+
           <div class="absolute inset-0 bg-gradient-to-t from-[#0a0c0a] via-transparent to-transparent z-10"></div>
           <div class="absolute inset-0 border-[20px] border-black/20 pointer-events-none z-10"></div>
           <div class="absolute top-10 left-10 text-[10px] font-mono text-eco-primary/80 bg-black/60 border border-eco-primary/30 p-2 rounded backdrop-blur">
@@ -177,21 +179,28 @@ import * as echarts from 'echarts';
 
 const viewMode = ref('map');
 const selectedField = ref(null);
-const showShutter = ref(false); // 用于控制分屏闸门层的渲染
+const showShutter = ref(false);
 
-const fields = ref([
-  { id: 'F-001', name: 'A区-核心稻田', status: '健康', moisture: 45, pestIndex: '低', spad: 42.1, temp: 26.5, n: 142, p: 35, k: 120, x: 220, y: 160 },
-  { id: 'F-002', name: 'B区-试验田', status: '高危', moisture: 32, pestIndex: '高', spad: 38.5, temp: 28.2, n: 98, p: 20, k: 85, x: 620, y: 340 },
-  { id: 'F-003', name: 'C区-果林套种', status: '健康', moisture: 55, pestIndex: '无', spad: 45.0, temp: 25.1, n: 160, p: 40, k: 135, x: 780, y: 140 },
-  { id: 'F-004', name: 'D区-育秧温室', status: '预警', moisture: 60, pestIndex: '中', spad: 40.2, temp: 29.0, n: 155, p: 45, k: 140, x: 380, y: 480 }
-]);
-
+const fields = ref([]);
 const mapRef = ref(null);
 let myChart = null;
 
 const warpCanvas = ref(null);
 let warpFrameId = null;
 let warpParticles = [];
+
+// ======================= 图片资源动态加载区 =======================
+// 这里使用 try-catch 防止因找不到文件导致编译报错。
+// 如果你在 src/assets/ 下放了图片，系统会自动加载；如果没有，会自动降级为极简代码网格。
+let localMapBg = null;
+let localDetailBg = null;
+try {
+  localMapBg = new URL('../../assets/map_bg.jpg', import.meta.url).href;
+  localDetailBg = new URL('../../assets/detail_bg.jpg', import.meta.url).href;
+} catch (e) {
+  console.warn("本地图片未找到，将使用默认科幻网格底图。请在 src/assets/ 下放置 map_bg.jpg 和 detail_bg.jpg");
+}
+// ==================================================================
 
 watch(viewMode, (newVal) => {
   if (newVal === 'map') {
@@ -209,18 +218,15 @@ const triggerShuttle = (field) => {
   viewMode.value = 'shuttle';
   showShutter.value = false;
 
-  nextTick(() => {
-    initWarpDrive();
-  });
+  nextTick(() => { initWarpDrive(); });
 
-  // 1. 在 2200ms 粒子全速冲刺到最模糊的巅峰状态时，瞬间在最上层锁死降下闭合闸门
   setTimeout(() => {
-    showShutter.value = true;   // 闸门瞬间闭合显现
-    viewMode.value = 'detail';  // 同步在闸门下方悄悄把视图切进 detail 面板
-    if (warpFrameId) cancelAnimationFrame(warpFrameId); // 停掉Canvas动画节约性能
+    showShutter.value = true;
+    viewMode.value = 'detail';
+    // ⚠️ 【优化点2】：此处取消动画，节约性能
+    if (warpFrameId) cancelAnimationFrame(warpFrameId);
   }, 2200);
 
-  // 2. 闸门动画时长设计为 800ms，在 3000ms（2200 + 800）完全移出屏幕外时将其注销
   setTimeout(() => {
     showShutter.value = false;
   }, 3000);
@@ -308,7 +314,8 @@ const initWarpDrive = () => {
 };
 
 const initMap = () => {
-  if (!mapRef.value) return;
+  if (!mapRef.value || fields.value.length === 0) return;
+
   myChart = echarts.init(mapRef.value);
 
   const scatterData = fields.value.map(f => {
@@ -333,6 +340,23 @@ const initMap = () => {
     symbolSize: 150
   }));
 
+  // ECharts 背景配置
+  let graphicElements = [];
+  if (localMapBg) {
+    graphicElements.push({
+      type: 'image',
+      style: { image: localMapBg, width: 1000, height: 600, opacity: 0.35 },
+      left: 'center', top: 'center'
+    });
+  } else {
+    // 纯代码绘制备用底图雷达网格
+    graphicElements.push({
+      type: 'rect',
+      style: { fill: 'rgba(16, 185, 129, 0.03)' },
+      shape: { x: 0, y: 0, width: 1000, height: 600 }
+    });
+  }
+
   const option = {
     backgroundColor: 'transparent',
     tooltip: {
@@ -341,21 +365,7 @@ const initMap = () => {
       textStyle: { color: '#fff', fontSize: 11, fontFamily: 'monospace' },
       formatter: (p) => p.seriesName === '热力' ? '' : `<div>${p.name} [点击下钻全息剖析]</div>`
     },
-    graphic: {
-      elements: [
-        {
-          type: 'image',
-          style: {
-            image: 'https://images.pexels.com/photos/2832039/pexels-photo-2832039.jpeg?auto=compress&cs=tinysrgb&w=1200',
-            width: 1000,
-            height: 600,
-            opacity: 0.25
-          },
-          left: 'center',
-          top: 'center'
-        }
-      ]
-    },
+    graphic: { elements: graphicElements },
     xAxis: { show: false, min: 0, max: 1000 },
     yAxis: { show: false, min: 0, max: 600, inverse: true },
     series: [
@@ -374,19 +384,32 @@ const initMap = () => {
   });
 };
 
+const fetchFieldsData = async () => {
+  try {
+    const response = await fetch('http://127.0.0.1:8000/api/fields');
+    if (!response.ok) throw new Error('Network response was not ok');
+    fields.value = await response.json();
+    nextTick(() => { initMap(); });
+  } catch (error) {
+    console.error('获取数据失败:', error);
+  }
+};
+
 onMounted(() => {
-  nextTick(() => { initMap(); });
+  fetchFieldsData();
   window.addEventListener('resize', () => { if (myChart) myChart.resize(); });
 });
 
 onUnmounted(() => {
   window.removeEventListener('resize', () => { if (myChart) myChart.resize(); });
   if (myChart) myChart.dispose();
+  // ⚠️ 【优化点3】：生命周期结束时，清理可能的残余动画帧，防止内存泄漏卡死
   if (warpFrameId) cancelAnimationFrame(warpFrameId);
 });
 </script>
 
 <style scoped>
+/* 此处保留你原有的 CSS 动画样式，无需更改 */
 .view-animate {
   animation: fadeIn 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
 }
@@ -425,7 +448,6 @@ onUnmounted(() => {
   100% { transform: skew(0deg); }
 }
 
-/* ==================== 【新增】高科技分屏上下闸门开启特效 CSS ==================== */
 .shutter-top-anim {
   animation: shutterUpOpen 0.8s cubic-bezier(0.85, 0, 0.15, 1) forwards;
 }
@@ -440,7 +462,7 @@ onUnmounted(() => {
 
 @keyframes shutterUpOpen {
   0% { transform: translateY(0); }
-  15% { transform: translateY(0); } /* 停留 15% 帧长积蓄气压感 */
+  15% { transform: translateY(0); }
   100% { transform: translateY(-100%); }
 }
 

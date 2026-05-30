@@ -1,3 +1,6 @@
+#cd backend 再下载
 fastapi==0.110.0
 uvicorn==0.30.1
 pydantic==2.6.4
+greenlet==3.1.1
+sqlalchemy==2.0.50
