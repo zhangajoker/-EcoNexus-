@@ -29,6 +29,7 @@
     </transition>
 
     <div class="relative z-10">
+
       <div class="flex justify-between items-center mb-8 border-b border-white/10 pb-6">
         <div class="flex items-center gap-4">
           <div class="scale-75 origin-left"><EcoLogo /></div>
@@ -38,6 +39,19 @@
           </div>
         </div>
         <div class="text-right">
+          <div class="flex items-center justify-end gap-3 font-mono tabular-nums mb-2">
+            <span class="relative flex h-2 w-2">
+              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500 shadow-[0_0_8px_#10b981]"></span>
+            </span>
+            <div class="flex items-baseline gap-2">
+              <span class="text-[10px] text-gray-400/80 tracking-[0.2em]">{{ datePart }}</span>
+              <span class="text-[10px] text-emerald-500/50">/</span>
+              <span class="text-[13px] text-emerald-400 tracking-[0.1em] font-bold drop-shadow-[0_0_5px_rgba(16,185,129,0.4)]">
+                {{ timePart }}
+              </span>
+            </div>
+          </div>
           <span class="text-gray-400 text-xs uppercase">全域生产健康指数</span>
           <div class="text-3xl font-mono mt-1" :class="apiData.efficiency_score >= 90 ? 'text-white' : 'text-yellow-400'">
             <span v-if="isLoading" class="animate-pulse">--.-</span>
@@ -114,39 +128,110 @@
       </div>
 
       <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div @click="openDrillDown('nitrogen')" class="glass-card p-6 rounded-2xl cursor-pointer group hover:-translate-y-1 hover:shadow-[0_15px_40px_rgba(16,185,129,0.2)] transition-all duration-300 relative overflow-hidden">
-          <h4 class="text-gray-400 text-xs mb-2">氮肥利用率 (NUE)</h4>
-          <div class="text-4xl font-mono mb-2 text-white">
-             <span v-if="isLoading" class="animate-pulse">--</span>
-             <span v-else>{{ apiData.nitrogen_efficiency?.current_value }}</span><span class="text-base text-gray-600">%</span>
+
+        <div @click="openDrillDown('nitrogen')" class="glass-card p-5 rounded-lg border border-white/5 cursor-pointer group hover:-translate-y-1 hover:shadow-[0_0_30px_rgba(16,185,129,0.15)] transition-all duration-300 relative overflow-hidden">
+          <div class="absolute top-0 left-0 w-3 h-3 border-t border-l border-emerald-500/50"></div>
+          <div class="absolute top-0 right-0 w-3 h-3 border-t border-r border-emerald-500/50"></div>
+          <div class="absolute bottom-0 left-0 w-3 h-3 border-b border-l border-emerald-500/50"></div>
+          <div class="absolute bottom-0 right-0 w-3 h-3 border-b border-r border-emerald-500/50"></div>
+
+          <div class="absolute -right-2 top-4 text-7xl font-black text-white/[0.02] italic font-mono group-hover:scale-110 transition-transform pointer-events-none">N1</div>
+
+          <div class="flex justify-between items-center mb-4 relative z-10">
+            <div class="flex items-center gap-2">
+              <span class="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_5px_#10b981]"></span>
+              <h4 class="text-gray-400 text-xs font-mono tracking-widest uppercase">NUE-Ratio</h4>
+            </div>
+            <span class="text-[9px] text-emerald-500/50 font-mono border border-emerald-500/20 px-1 rounded">SYS.ON</span>
           </div>
-          <div class="h-[60px] w-full mt-2 opacity-40 group-hover:opacity-100 transition-opacity">
+
+          <div class="flex items-baseline gap-3 mb-1 relative z-10">
+            <div class="text-4xl font-mono text-white tracking-tight">
+               <span v-if="isLoading" class="animate-pulse">--</span>
+               <span v-else>{{ apiData.nitrogen_efficiency?.current_value }}</span><span class="text-base text-emerald-500 ml-1">%</span>
+            </div>
+            <div class="flex items-center text-[10px] text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded mb-2 border border-emerald-500/20">
+              <svg class="w-3 h-3 mr-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18" /></svg>
+              1.2%
+            </div>
+          </div>
+          <p class="text-[10px] text-gray-400/90 font-mono tracking-widest relative z-10 mb-2">氮肥利用率动态监测</p>
+
+          <div class="h-[50px] w-full opacity-60 group-hover:opacity-100 transition-opacity relative z-10">
             <div ref="sparklineNitrogen" class="w-full h-full"></div>
           </div>
         </div>
 
-        <div @click="openDrillDown('pest')" class="glass-card p-6 rounded-2xl cursor-pointer group hover:-translate-y-1 hover:shadow-[0_15px_40px_rgba(234,179,8,0.2)] transition-all duration-300 relative overflow-hidden">
-          <h4 class="text-gray-400 text-xs mb-2">病虫害等级预警</h4>
-          <div class="text-3xl font-bold mb-2" :class="apiData.pest_risk?.current_value === 'MEDIUM' ? 'text-yellow-500' : 'text-emerald-500'">
-            <span v-if="isLoading" class="animate-pulse">LOADING</span>
-            <span v-else>{{ apiData.pest_risk?.current_value }}</span>
+        <div @click="openDrillDown('pest')"
+             class="glass-card p-5 rounded-lg border border-white/5 cursor-pointer group hover:-translate-y-1 hover:shadow-[0_0_30px_rgba(234,179,8,0.15)] transition-all duration-300 relative overflow-hidden"
+             :class="{'alarm-ripple-yellow': apiData.pest_risk?.current_value === 'MEDIUM' && !ackAlarms.pest}">
+          <div class="absolute top-0 left-0 w-3 h-3 border-t border-l border-yellow-500/50"></div>
+          <div class="absolute top-0 right-0 w-3 h-3 border-t border-r border-yellow-500/50"></div>
+          <div class="absolute bottom-0 left-0 w-3 h-3 border-b border-l border-yellow-500/50"></div>
+          <div class="absolute bottom-0 right-0 w-3 h-3 border-b border-r border-yellow-500/50"></div>
+
+          <div class="absolute -right-2 top-4 text-7xl font-black text-white/[0.02] italic font-mono group-hover:scale-110 transition-transform pointer-events-none">P2</div>
+
+          <div class="flex justify-between items-center mb-4 relative z-10">
+            <div class="flex items-center gap-2">
+              <span class="w-1.5 h-1.5 bg-yellow-500 rounded-full animate-pulse shadow-[0_0_5px_#eab308]"></span>
+              <h4 class="text-gray-400 text-xs font-mono tracking-widest uppercase">PEST-Alert</h4>
+            </div>
+            <span class="text-[9px] text-yellow-500/50 font-mono border border-yellow-500/20 px-1 rounded animate-pulse">DETECT</span>
           </div>
-          <div class="h-[60px] w-full mt-2 opacity-40 group-hover:opacity-100 transition-opacity">
+
+          <div class="flex items-baseline gap-3 mb-1 relative z-10">
+            <div class="text-2xl font-semibold tracking-widest" :class="apiData.pest_risk?.current_value === 'MEDIUM' ? 'text-yellow-400' : 'text-emerald-500'">
+              <span v-if="isLoading" class="animate-pulse">LOAD</span>
+              <span v-else>{{ apiData.pest_risk?.current_value === 'MEDIUM' ? '中等' : apiData.pest_risk?.current_value }}</span>
+            </div>
+            <div v-if="apiData.pest_risk?.current_value === 'MEDIUM'" class="flex items-center text-[10px] text-yellow-400 bg-yellow-400/10 px-1.5 py-0.5 rounded mb-1 border border-yellow-400/20">
+              <svg class="w-3 h-3 mr-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+              LV.2
+            </div>
+          </div>
+          <p class="text-[10px] text-gray-400/90 font-mono tracking-widest relative z-10 mb-2 mt-2">边缘视觉推断 ACTIVE</p>
+
+          <div class="h-[50px] w-full opacity-60 group-hover:opacity-100 transition-opacity relative z-10 mt-1">
             <div ref="sparklinePest" class="w-full h-full"></div>
           </div>
         </div>
 
-        <div @click="openDrillDown('moisture')" class="glass-card p-6 rounded-2xl cursor-pointer group hover:-translate-y-1 hover:shadow-[0_15px_40px_rgba(96,165,250,0.2)] transition-all duration-300 relative overflow-hidden">
-          <h4 class="text-gray-400 text-xs mb-2">土壤墒情监测</h4>
-          <div class="text-4xl font-mono text-blue-400 mb-2">
-            <span v-if="isLoading" class="animate-pulse">--</span>
-            <span v-else>{{ apiData.soil_moisture?.current_value }}</span><span class="text-base text-blue-400/50">%</span>
+        <div @click="openDrillDown('moisture')" class="glass-card p-5 rounded-lg border border-white/5 cursor-pointer group hover:-translate-y-1 hover:shadow-[0_0_30px_rgba(96,165,250,0.15)] transition-all duration-300 relative overflow-hidden">
+          <div class="absolute top-0 left-0 w-3 h-3 border-t border-l border-blue-400/50"></div>
+          <div class="absolute top-0 right-0 w-3 h-3 border-t border-r border-blue-400/50"></div>
+          <div class="absolute bottom-0 left-0 w-3 h-3 border-b border-l border-blue-400/50"></div>
+          <div class="absolute bottom-0 right-0 w-3 h-3 border-b border-r border-blue-400/50"></div>
+
+          <div class="absolute -right-2 top-4 text-7xl font-black text-white/[0.02] italic font-mono group-hover:scale-110 transition-transform pointer-events-none">M3</div>
+
+          <div class="flex justify-between items-center mb-4 relative z-10">
+            <div class="flex items-center gap-2">
+              <span class="w-1.5 h-1.5 bg-blue-400 rounded-full animate-pulse shadow-[0_0_5px_#60a5fa]"></span>
+              <h4 class="text-gray-400 text-xs font-mono tracking-widest uppercase">SOIL-Water</h4>
+            </div>
+            <span class="text-[9px] text-blue-400/50 font-mono border border-blue-400/20 px-1 rounded">SYNC</span>
           </div>
-          <div class="h-[60px] w-full mt-2 opacity-40 group-hover:opacity-100 transition-opacity">
+
+          <div class="flex items-baseline gap-3 mb-1 relative z-10">
+            <div class="text-4xl font-mono text-white tracking-tight">
+               <span v-if="isLoading" class="animate-pulse">--</span>
+               <span v-else>{{ apiData.soil_moisture?.current_value }}</span><span class="text-base text-blue-400 ml-1">%</span>
+            </div>
+            <div class="flex items-center text-[10px] text-blue-400 bg-blue-400/10 px-1.5 py-0.5 rounded mb-2 border border-blue-400/20">
+              <svg class="w-3 h-3 mr-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3" /></svg>
+              0.8%
+            </div>
+          </div>
+          <p class="text-[10px] text-gray-400/90 font-mono tracking-widest relative z-10 mb-2">雷达含水量回传</p>
+
+          <div class="h-[50px] w-full opacity-60 group-hover:opacity-100 transition-opacity relative z-10">
             <div ref="sparklineMoisture" class="w-full h-full"></div>
           </div>
         </div>
+
       </div>
+
     </div>
 
     <transition name="fade">
@@ -197,6 +282,28 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
 const isLoading = ref(true);
 const apiData = ref({});
 const errorMessage = ref('');
+const datePart = ref('');
+const timePart = ref('');
+let clockTimer = null;
+
+const updateClock = () => {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  const hh = String(now.getHours()).padStart(2, '0');
+  const mm = String(now.getMinutes()).padStart(2, '0');
+  const ss = String(now.getSeconds()).padStart(2, '0');
+
+  // 分离日期和时间
+  datePart.value = `${y}.${m}.${d}`;
+  timePart.value = `${hh}:${mm}:${ss}`;
+
+  // 动态计算距离下一个真实整秒的毫秒差，实现精准对齐防漂移
+  const msUntilNextSecond = 1000 - now.getMilliseconds();
+  clockTimer = setTimeout(updateClock, msUntilNextSecond);
+};
+const ackAlarms = ref({ nitrogen: false, pest: false, moisture: false });
 
 // 引用微缩图容器
 const sparklineNitrogen = ref(null);
@@ -252,8 +359,20 @@ const initSparkline = (el, data, color) => {
     yAxis: { type: 'value', show: false, min: 'dataMin' },
     series: [{
       data: data, type: 'line', smooth: true, symbol: 'none',
-      lineStyle: { width: 2, color: color },
-      areaStyle: { color: new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0, color:`${color}33`},{offset:1, color:'transparent'}]) }
+      lineStyle: {
+        width: 2,
+        color: color,
+        shadowBlur: 8,          // 新增：折线发光模糊度
+        shadowColor: color,     // 新增：折线发光颜色
+        shadowOffsetY: 2        // 新增：发光偏移
+      },
+      areaStyle: {
+        // 将顶部的透明度从 33 改为 66，增强赛博朋克光晕感
+        color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+          { offset: 0, color: `${color}66` },
+          { offset: 1, color: 'transparent' }
+        ])
+      }
     }]
   });
   sparklineInstances.push(ins);
@@ -265,6 +384,7 @@ const handleResize = () => {
 };
 
 onMounted(async () => {
+updateClock();
   window.addEventListener('resize', handleResize);
   fetchWeather();
   try {
@@ -283,6 +403,7 @@ onMounted(async () => {
 });
 
 onUnmounted(() => {
+if (clockTimer) clearTimeout(clockTimer);
   window.removeEventListener('resize', handleResize);
   myChart?.dispose();
   sparklineInstances.forEach(ins => ins.dispose());
@@ -290,6 +411,10 @@ onUnmounted(() => {
 
 const openDrillDown = async (id) => {
   if (isDrilling.value) return;
+
+  // 👇 新增这行核心代码：当点击卡片时，标记该模块已被确认，关闭涟漪！
+  ackAlarms.value[id] = true;
+
   isModalOpen.value = true;
   isDrilling.value = true;
   try {
@@ -349,5 +474,17 @@ const renderChart = (data, color) => {
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.1);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
+}
+/* 6. 动态警报涟漪特效 (向外扩散的雷达波) */
+@keyframes cyber-ripple-yellow {
+  0% { box-shadow: 0 0 0 0 rgba(234, 179, 8, 0.4); border-color: rgba(234, 179, 8, 0.8); }
+  70% { box-shadow: 0 0 0 20px rgba(234, 179, 8, 0); border-color: rgba(255, 255, 255, 0.05); }
+  100% { box-shadow: 0 0 0 0 rgba(234, 179, 8, 0); border-color: rgba(255, 255, 255, 0.05); }
+}
+
+.alarm-ripple-yellow {
+  /* 使用柔和的物理贝塞尔曲线，让涟漪扩散更平滑 */
+  animation: cyber-ripple-yellow 2s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+  z-index: 20;
 }
 </style>
