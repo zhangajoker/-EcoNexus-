@@ -122,7 +122,7 @@
                     :disabled="isScanning"
                     class="bg-black/80 border border-eco-primary hover:bg-eco-primary/20 text-eco-primary font-mono text-xs px-6 py-3 rounded-none backdrop-blur transition-all flex items-center gap-2 group-hover:opacity-100 opacity-40">
               <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
-              {{ isScanning ? '神经网格计算中...' : '启动 AI 靶向诊断' }}
+              {{ isScanning ? '神经网格与大模型通信中...' : '启动大小模型协同诊断' }}
             </button>
           </div>
 
@@ -158,35 +158,30 @@
                :class="visionDetectCount > 0 ? 'border-yellow-500/50 bg-yellow-900/10' : (visionDetectCount === 0 ? 'border-emerald-500/50 bg-emerald-900/10' : 'border-eco-primary/20')">
             <h4 class="text-xs font-bold mb-3 flex items-center gap-2" :class="visionDetectCount > 0 ? 'text-yellow-400' : 'text-eco-primary'">
               <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-              天衍中枢调度策略
+              云端大模型综合调度决策
             </h4>
 
             <p v-if="visionDetectCount === null" class="text-xs text-gray-400 leading-relaxed font-sans">
-              当前区域传感数据均值正常。等待边缘视觉雷达进一步切片确认，以防发生“漏斗型”隐蔽病虫害聚集。
+              当前区域传感数据已就绪。等待触发边缘视觉雷达，以便大模型结合多模态特征下达智能生产调度指令。
             </p>
 
-            <div v-else-if="visionDetectCount === 0" class="space-y-3">
-              <div class="text-xs text-emerald-300 leading-relaxed font-sans border-l-2 border-emerald-500 pl-3">
-                <span class="font-bold block mb-1 font-mono">STATUS: SECURE & CLEAR</span>
-                YOLOv8 边缘推理完毕。当前生境切片未发现已知病虫害或异常目标聚集。
-              </div>
-              <div class="text-[10px] text-gray-500 font-mono mt-2 flex items-center gap-2">
-                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                系统继续维持现有水肥自适应滴灌排程。
-              </div>
-            </div>
-
             <div v-else class="space-y-3">
-              <div class="text-xs text-yellow-300 leading-relaxed font-sans border-l-2 border-yellow-500 pl-3">
-                <span class="font-bold block mb-1 font-mono">WARNING: ABNORMAL ENTITIES DETECTED</span>
-                YOLOv8 边缘推理完毕。在当前切片中发现 <strong class="text-white">{{ visionDetectCount }}</strong> 处异常聚集特征。
+              <div class="text-xs leading-relaxed font-sans border-l-2 pl-3"
+                   :class="visionDetectCount > 0 ? 'text-yellow-300 border-yellow-500' : 'text-emerald-300 border-emerald-500'">
+                <span class="font-bold block mb-2 font-mono text-white opacity-80">
+                  > LLM_REASONING_ENGINE // ACTIVE
+                </span>
+                <span class="text-sm font-bold tracking-wide">{{ aiAdvice }}</span>
               </div>
+
               <div class="text-[10px] text-gray-500 font-mono mt-2 flex items-center gap-2">
-                <span class="w-1.5 h-1.5 rounded-full bg-yellow-500 animate-ping"></span>
-                已自动将坐标数据下发至 P3 植保无人机群，准备实施靶向物理压制。
+                <span class="w-1.5 h-1.5 rounded-full animate-ping"
+                      :class="visionDetectCount > 0 ? 'bg-yellow-500' : 'bg-emerald-500'"></span>
+                上述大模型干预指令已同步写入 ESG 碳汇智能合约底层账本。
               </div>
             </div>
           </div>
+
         </div>
       </div>
     </div>
@@ -214,6 +209,7 @@ const fallbackImg = "https://images.pexels.com/photos/259280/pexels-photo-259280
 const currentVisionImg = ref(null);
 const isScanning = ref(false);
 const visionDetectCount = ref(null);
+const aiAdvice = ref(null); // 大模型建议存储
 const fileInput = ref(null);
 
 watch(viewMode, (newVal) => {
@@ -228,6 +224,7 @@ watch(viewMode, (newVal) => {
 const resetDetailState = () => {
   currentVisionImg.value = null;
   visionDetectCount.value = null;
+  aiAdvice.value = null;
   isScanning.value = false;
 };
 
@@ -250,16 +247,19 @@ const triggerShuttle = (field) => {
   }, 3000);
 };
 
-// ==================== YOLOv8 边缘推理核心调用 ====================
+// ==================== YOLOv8 + LLM 双引擎推理通信 ====================
 const uploadToYOLOv8 = async (event) => {
   const file = event.target.files[0];
   if (!file) return;
 
   isScanning.value = true;
   visionDetectCount.value = null;
+  aiAdvice.value = null;
 
   const formData = new FormData();
   formData.append('file', file);
+  // 【关键修复】向后端传递 field_id，否则后端查询不到对应温湿度数据
+  formData.append('field_id', selectedField.value?.id || 'F-001');
 
   try {
     const response = await fetch('http://127.0.0.1:8000/api/vision/analyze', {
@@ -271,20 +271,20 @@ const uploadToYOLOv8 = async (event) => {
 
     const result = await response.json();
 
-    // 延迟 1.5 秒以展示逼真的雷达扫描动效
+    // 延迟展示雷达扫描动效
     setTimeout(() => {
       currentVisionImg.value = result.image_data;
       visionDetectCount.value = result.detected_count;
+      aiAdvice.value = result.ai_advice; // 渲染大模型的决策文本
       isScanning.value = false;
     }, 1500);
 
   } catch (error) {
-    console.error('YOLOv8 通信失败:', error);
+    console.error('通信失败:', error);
     alert('中枢连接丢失，请检查 FastAPI 服务状态。');
     isScanning.value = false;
   }
 };
-
 
 const initWarpDrive = () => {
   const canvas = warpCanvas.value;
@@ -438,13 +438,8 @@ onUnmounted(() => {
 .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(52, 211, 153, 0.2); border-radius: 4px; }
 
 /* 机器视觉雷达光栅特效 */
-.animate-radar-scan {
-  animation: radarScan 2.5s cubic-bezier(0.4, 0, 0.2, 1) infinite alternate;
-}
-@keyframes radarScan {
-  0% { transform: translateY(0); opacity: 0.8; }
-  100% { transform: translateY(620px); opacity: 0.2; }
-}
+.animate-radar-scan { animation: radarScan 2.5s cubic-bezier(0.4, 0, 0.2, 1) infinite alternate; }
+@keyframes radarScan { 0% { transform: translateY(0); opacity: 0.8; } 100% { transform: translateY(620px); opacity: 0.2; } }
 
 .warp-hud-animate { animation: hudScale 2.2s cubic-bezier(0.1, 0.8, 0.2, 1) forwards; }
 @keyframes hudScale {
@@ -454,11 +449,7 @@ onUnmounted(() => {
   100% { transform: scale(1.8); opacity: 0; filter: blur(4px); }
 }
 
-.warp-text-glitch {
-  position: relative;
-  text-shadow: 0 0 15px rgba(52, 211, 153, 0.8);
-  animation: glitch-skew 2.2s cubic-bezier(0.25, 0.46, 0.45, 0.94) both infinite;
-}
+.warp-text-glitch { position: relative; text-shadow: 0 0 15px rgba(52, 211, 153, 0.8); animation: glitch-skew 2.2s cubic-bezier(0.25, 0.46, 0.45, 0.94) both infinite; }
 @keyframes glitch-skew {
   0% { transform: skew(0deg); } 2% { transform: skew(-4deg); } 4% { transform: skew(4deg); }
   6% { transform: skew(0deg); } 100% { transform: skew(0deg); }

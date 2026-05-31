@@ -1,24 +1,21 @@
-from fastapi import FastAPI, Depends, UploadFile, File
+from fastapi import FastAPI, Depends, File, UploadFile, Form
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import create_engine, Column, String, Float, Integer
 from sqlalchemy.orm import sessionmaker, declarative_base, Session
-import paho.mqtt.client as mqtt
-import json
-from contextlib import asynccontextmanager
 import cv2
 import numpy as np
-from ultralytics import YOLO
 import base64
+from ultralytics import YOLO
+import datetime
+from openai import OpenAI  # 引入大模型SDK
 
-# ==================== 1. 数据库配置 (SQLAlchemy) ====================
+# ==================== 1. 数据库配置 ====================
 SQLALCHEMY_DATABASE_URL = "sqlite:///./econexus.db"
-# check_same_thread=False 是 SQLite 配合 FastAPI 需要的特有配置
 engine = create_engine(SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
 
-# ==================== 2. 数据表模型定义 ====================
 class FieldNode(Base):
     __tablename__ = "field_nodes"
     id = Column(String, primary_key=True, index=True)
@@ -35,93 +32,42 @@ class FieldNode(Base):
     y = Column(Integer)
 
 
-# 在本地创建表结构
+class ESGAsset(Base):
+    __tablename__ = "esg_assets"
+    id = Column(Integer, primary_key=True, default=1)
+    co2_reduction = Column(Float, default=1482.5)
+    pollution_interception = Column(Float, default=3105.0)
+    financial_rating = Column(String, default="AAA")
+    carbon_revenue = Column(Float, default=118600.0)
+
+
+class ESGLog(Base):
+    __tablename__ = "esg_logs"
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    timestamp = Column(String)
+    category = Column(String)
+    title = Column(String)
+    description = Column(String)
+
+
 Base.metadata.create_all(bind=engine)
 
-# ==================== 3. MQTT 配置与状态缓存 ====================
-BROKER = "broker.emqx.io"
-PORT = 1883
-TOPIC = "econexus/telemetry/node_01"
+# ==================== 2. 双引擎初始化 (YOLO视觉 + LLM大脑) ====================
+print("Loading YOLOv8 Vision Engine...")
+vision_model = YOLO("yolov8n.pt")
+print("Vision Engine Loaded Successfully!")
 
-latest_telemetry = {
-    "efficiency_score": 92,
-    "nitrogen_efficiency": {"current_value": 75.0, "status_tag": "正常"},
-    "soil_moisture": {"current_value": 42.0, "status_tag": "适宜"},
-    "pest_risk": {"current_value": "LOW", "status_tag": "安全"}
-}
-
-
-def on_message(client, userdata, msg):
-    global latest_telemetry
-    try:
-        data = json.loads(msg.payload.decode())
-        print(f"📥 [MQTT 数据包] {data}")
-        latest_telemetry["nitrogen_efficiency"]["current_value"] = data.get("nitrogen_efficiency", 75.0)
-        latest_telemetry["soil_moisture"]["current_value"] = data.get("soil_moisture", 42.0)
-        latest_telemetry["pest_risk"]["current_value"] = data.get("pest_risk_level", "LOW")
-        latest_telemetry["efficiency_score"] = int(
-            (data.get("nitrogen_efficiency", 75) + data.get("soil_moisture", 40)) / 2 * 1.5)
-    except Exception as e:
-        print(f"解析失败: {e}")
-
-
-# ==================== 3.5 边缘视觉引擎初始化 ====================
-print("⏳ 正在加载 YOLOv8 视觉模型...")
-model = YOLO('yolov8n.pt')
-print("✅ 视觉模型加载完成！")
-
-
-# ==================== 4. FastAPI 生命周期与中间件 ====================
-# 这里使用了最新的 lifespan 替代了被弃用的 @app.on_event("startup")
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # --- 启动阶段 ---
-    # 1. 注入初始物理节点数据 (修复了斜杠错误和弃用警告)
-    db = SessionLocal()
-    if db.query(FieldNode).count() == 0:
-        mock_data = [
-            FieldNode(id="F-001", name="A区-核心稻田", status="健康", moisture=45.0, pestIndex="低", spad=42.1,
-                      temp=26.5, n=142, p=35, k=120, x=220, y=160),
-            FieldNode(id="F-002", name="B区-试验田", status="高危", moisture=32.0, pestIndex="高", spad=38.5, temp=28.2,
-                      n=98, p=20, k=85, x=620, y=340),
-            FieldNode(id="F-003", name="C区-果林套种", status="健康", moisture=55.0, pestIndex="无", spad=45.0,
-                      temp=25.1, n=160, p=40, k=135, x=780, y=140),
-            FieldNode(id="F-004", name="D区-育秧温室", status="预警", moisture=60.0, pestIndex="中", spad=40.2,
-                      temp=29.0, n=155, p=45, k=140, x=380, y=480)
-        ]
-        db.add_all(mock_data)
-        db.commit()
-    db.close()
-
-    # 2. 启动 MQTT 监听
-    mqtt_client = mqtt.Client(client_id="EcoNexus_Backend_01")
-    mqtt_client.on_message = on_message
-    try:
-        mqtt_client.connect(BROKER, PORT, 60)
-        mqtt_client.subscribe(TOPIC)
-        mqtt_client.loop_start()
-        print("✅ 后端已成功接入 MQTT 总线监听")
-    except Exception as e:
-        print(f"❌ MQTT 连接失败: {e}")
-
-    yield  # 让 FastAPI 正常提供服务
-
-    # --- 关闭阶段 ---
-    mqtt_client.loop_stop()
-    mqtt_client.disconnect()
-    print("🛑 MQTT 已安全断开")
-
-
-app = FastAPI(title="EcoNexus API", description="天衍·生境 农业数字孪生中枢", lifespan=lifespan)
-
-# 配置 CORS，允许 Vue 前端 (默认5173端口) 跨域请求
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+print("Connecting to Cloud LLM Engine...")
+# 【核心升级】配置大模型 API
+LLM_CLIENT = OpenAI(
+    api_key="...",  #  填入你的API Key
+    base_url="https://dashscope.aliyuncs.com/compatible-mode/v1"  #  这里默认是 DeepSeek，如果用别的请替换
 )
+
+# ==================== 3. FastAPI 实例与路由 ====================
+app = FastAPI(title="EcoNexus API")
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"],
+                   allow_headers=["*"])
 
 
 def get_db():
@@ -132,56 +78,147 @@ def get_db():
         db.close()
 
 
-# ==================== 5. 核心业务路由 ====================
+@app.on_event("startup")
+def startup_populate_data():
+    db = SessionLocal()
+    if db.query(FieldNode).count() == 0:
+        db.add_all([
+            FieldNode(id="F-001", name="A区-核心稻田", status="健康", moisture=45.0, pestIndex="低", spad=42.1,
+                      temp=26.5, n=142, p=35, k=120, x=220, y=160),
+            FieldNode(id="F-002", name="B区-试验田", status="高危", moisture=32.0, pestIndex="高", spad=38.5, temp=28.2,
+                      n=98, p=20, k=85, x=620, y=340),
+            FieldNode(id="F-003", name="C区-果林套种", status="健康", moisture=55.0, pestIndex="无", spad=45.0,
+                      temp=25.1, n=160, p=40, k=135, x=780, y=140),
+            FieldNode(id="F-004", name="D区-育秧温室", status="预警", moisture=60.0, pestIndex="中", spad=40.2,
+                      temp=29.0, n=155, p=45, k=140, x=380, y=480)
+        ])
+    if db.query(ESGAsset).count() == 0:
+        db.add(ESGAsset(id=1, co2_reduction=1482.5, pollution_interception=3105.0, financial_rating="AAA",
+                        carbon_revenue=118600.0))
+    db.commit()
+    db.close()
 
+
+# ----------------- 基础数据接口 -----------------
 @app.get("/api/fields")
 def get_all_fields(db: Session = Depends(get_db)):
-    """API: 获取全域态势感知的节点阵列数据 (战役一接口)"""
     return db.query(FieldNode).all()
 
 
+@app.get("/api/esg/dashboard")
+def get_esg_dashboard(db: Session = Depends(get_db)):
+    assets = db.query(ESGAsset).filter(ESGAsset.id == 1).first()
+    logs = db.query(ESGLog).order_by(ESGLog.id.desc()).all()
+    return {"assets": assets, "logs": logs}
+
+
+# ----------------- 主控看板接口 (修复红条报错) -----------------
 @app.get("/api/dashboard/overview")
-async def get_overview():
-    """API: 获取大屏顶部总览和图表数据 (战役二接口)"""
-    return latest_telemetry
-
-
-@app.post("/api/vision/detect")
-async def detect_pests(file: UploadFile = File(...)):
-    """API: 边缘视觉引擎 - 接收图像并返回 YOLO 检测结果及渲染图 (战役三接口)"""
-    try:
-        contents = await file.read()
-        nparr = np.frombuffer(contents, np.uint8)
-        img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-
-        results = model.predict(source=img, conf=0.25)
-
-        detections = []
-        for r in results:
-            boxes = r.boxes
-            for box in boxes:
-                b = box.xyxy[0].tolist()
-                c = box.cls
-                conf = box.conf[0].item()
-                class_name = model.names[int(c)]
-
-                detections.append({
-                    "class": class_name,
-                    "confidence": round(conf, 2),
-                    "bbox": [round(x) for x in b]
-                })
-
-        res_plotted = results[0].plot()
-
-        _, buffer = cv2.imencode('.jpg', res_plotted)
-        img_base64 = base64.b64encode(buffer).decode('utf-8')
-
-        return {
-            "status": "success",
-            "message": f"检测完成，发现 {len(detections)} 个目标",
-            "detections": detections,
-            "image_base64": f"data:image/jpeg;base64,{img_base64}"
+def get_dashboard_overview():
+    return {
+        "efficiency_score": 92,
+        "nitrogen_efficiency": {
+            "current_value": 82.5, "status_tag": "正常",
+            "ai_analysis": "当前 A 区核心稻田氮肥转化率趋于稳定，多光谱反演 NUE 比率较上一周期提升 1.2%。系统已暂缓二期化学追肥计划，避免地表径流造成面源污染。"
+        },
+        "pest_risk": {
+            "current_value": "MEDIUM", "status_tag": "预警",
+            "ai_analysis": "边缘视觉网络在 B 区试验田扫描到疑似鳞翅目虫害异常聚集斑块。已生成高精度靶向坐标，建议立即授权 P3 植保无人机机群进行精确物理干预。"
+        },
+        "soil_moisture": {
+            "current_value": 42.8, "status_tag": "平稳",
+            "ai_analysis": "微波雷达反演含水量显示浅层墒情充沛。蒸散发（ET0）模型已自动截断并调减今晚 C 区果林的微喷灌时长，预计节约灌溉用水约 12m³。"
         }
+    }
 
+
+@app.get("/api/dashboard/drill-down/{module_id}")
+def get_dashboard_drill_down(module_id: str):
+    if module_id == "nitrogen":
+        return {"metric_name": "全域氮肥转化效率",
+                "summary_analysis": "SPAD指数位于高位安全区间，作物体内氮素代谢旺盛。建议继续保持监控。",
+                "device_status": [{"name": "光谱仪", "status": "ONLINE"}],
+                "timeline_data": [{"time": "08:00", "value": 78}, {"time": "14:00", "value": 82.5}]}
+    elif module_id == "pest":
+        return {"metric_name": "病虫害靶向预警",
+                "summary_analysis": "病虫害扩散指数（PDI）呈轻微上升趋势。已激活声光驱离设备。",
+                "device_status": [{"name": "视觉云台", "status": "ACTIVE"}],
+                "timeline_data": [{"time": "08:00", "value": 1.1}, {"time": "14:00", "value": 2.5}]}
+    elif module_id == "moisture":
+        return {"metric_name": "立体墒情水资源调控",
+                "summary_analysis": "土壤水分渗透率极佳。AI已主动实施精准数字孪生排程。",
+                "device_status": [{"name": "主控阀门", "status": "LOCKED"}],
+                "timeline_data": [{"time": "08:00", "value": 38}, {"time": "14:00", "value": 42.8}]}
+
+
+# ----------------- 核心重构：大小模型协同视觉接口 -----------------
+@app.post("/api/vision/analyze")
+async def analyze_vision(
+        field_id: str = Form("F-001"),
+        file: UploadFile = File(...),
+        db: Session = Depends(get_db)
+):
+    # 1. 边缘感知 (YOLO)
+    contents = await file.read()
+    nparr = np.frombuffer(contents, np.uint8)
+    img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+
+    results = vision_model(img, conf=0.25)
+    annotated_img = results[0].plot()
+    detected_count = len(results[0].boxes)
+
+    # 2. 融合当前地块的 IoT 传感数据
+    field = db.query(FieldNode).filter(FieldNode.id == field_id).first()
+
+    # 3. 构造大模型 Prompt
+    prompt = f"""
+    你现在是天衍数字农业的AI智能调度大脑。
+    当前检测区域：{field.name if field else '未知地块'}
+    当前传感数据：土壤水分 {field.moisture if field else 40}%，地表温度 {field.temp if field else 25}℃，全氮 {field.n if field else 100}mg/kg，有效磷 {field.p if field else 30}mg/kg。
+    边缘视觉雷达(YOLOv8)警报：在最新实况画面中检测到了 {detected_count} 个异常目标。
+
+    请根据以上数据，给出一段冰冷、专业的调度指令。要求：
+    1. 数量>0时，必须下达具体的无人机或物理干预指令。
+    2. 数量=0时，进行安全确认并建议维持现有低碳排程。
+    3. 严格控制在60字左右，直接输出建议。
+    """
+
+    # 4. 云端大模型决策 (LLM)
+    try:
+        response = LLM_CLIENT.chat.completions.create(
+            model="qwen-plus",  # 如果用其他厂商，修改成对应的模型名，如 glm-4
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.4
+        )
+        ai_dynamic_advice = response.choices[0].message.content
     except Exception as e:
-        return {"status": "error", "message": f"图像处理失败: {str(e)}"}
+        print(f"大模型调用失败: {e}")
+        ai_dynamic_advice = f"云端大模型链路暂未连通。系统默认调度策略：建议人工复核 {detected_count} 处特征点。"
+
+    # 5. ESG 资产核算入库
+    _, buffer = cv2.imencode('.jpg', annotated_img)
+    img_base64 = base64.b64encode(buffer).decode('utf-8')
+    asset = db.query(ESGAsset).filter(ESGAsset.id == 1).first()
+    now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    if detected_count > 0:
+        saved_pesticide = round(detected_count * 3.1, 1)
+        asset.co2_reduction += round(detected_count * 0.08, 3)
+        asset.carbon_revenue += detected_count * 120
+        asset.pollution_interception += saved_pesticide
+        db.add(ESGLog(timestamp=now_str, category="靶向干预", title=f"大小模型协同触发拦截",
+                      description=f"AI大脑决策：{ai_dynamic_advice}。核算截断面源污染 {saved_pesticide}kg。"))
+    else:
+        asset.co2_reduction += 0.01
+        asset.carbon_revenue += 15
+        db.add(ESGLog(timestamp=now_str, category="孪生排程", title="多模态诊断安全放行",
+                      description=f"AI大脑决策：{ai_dynamic_advice}。排程核算贡献 0.01 tCO₂e。"))
+
+    db.commit()
+
+    return {
+        "status": "success",
+        "detected_count": detected_count,
+        "ai_advice": ai_dynamic_advice,
+        "image_data": f"data:image/jpeg;base64,{img_base64}"
+    }
