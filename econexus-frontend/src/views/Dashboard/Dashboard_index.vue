@@ -90,7 +90,10 @@
           </div>
           <div class="flex-1 flex flex-col justify-center">
             <div v-if="weatherInfo.warning" class="flex items-center gap-3 mb-3">
-              <span class="px-2 py-0.5 rounded text-[10px] font-bold tracking-wider bg-orange-500/20 text-orange-400 border border-orange-500/40 animate-pulse">{{ weatherInfo.warning.level }}</span>
+              <span class="px-2 py-0.5 rounded text-[10px] font-bold tracking-wider"
+                    :class="weatherInfo.warning.level === '链路断开' ? 'bg-purple-500/20 text-purple-400 border border-purple-500/40 animate-pulse' : 'bg-orange-500/20 text-orange-400 border border-orange-500/40 animate-pulse'">
+                {{ weatherInfo.warning.level }}
+              </span>
               <span class="text-sm font-bold text-gray-200">{{ weatherInfo.warning.title }}</span>
             </div>
             <div v-else class="flex items-center gap-3 mb-3">
@@ -316,31 +319,44 @@ const weatherInfo = ref({
   ai_proposal: 'AI 气象感知模型全域扫描中...'
 });
 
+// 【核心修改点】：重构天气请求逻辑，走后端代理接口
 const fetchWeather = async () => {
   try {
-    const res = await axios.get('https://api.open-meteo.com/v1/forecast?latitude=39.9042&longitude=116.4074&current=temperature_2m,relative_humidity_2m,weather_code');
+    const res = await axios.get(`${API_BASE}/api/weather`);
+
     if (res.status === 200) {
       const cur = res.data.current;
       weatherInfo.value.temp = cur.temperature_2m + '°C';
       weatherInfo.value.humidity = cur.relative_humidity_2m + '%';
       const code = cur.weather_code;
       let text = '晴朗'; let warn = false;
+
       if (code <= 3) text = '多云转晴';
       else if (code <= 49) text = '雾霾/低能见度';
       else if (code <= 69) { text = '降雨'; warn = true; }
       else if (code <= 79) { text = '降雪'; warn = true; }
       else if (code >= 80) { text = '雷暴'; warn = true; }
+
       weatherInfo.value.condition = text;
-      if (warn) {
-        weatherInfo.value.warning = { level: '黄色预警', title: `侦测到${text}过程` };
-        weatherInfo.value.ai_proposal = `感知到${text}。建议：暂停户外作业，切换排灌模式，机库物理锁定。`;
+
+      // 判断是否是后端的兜底模拟数据
+      if (res.data.status === 'fallback') {
+        weatherInfo.value.condition = '边缘缓存模式';
+        weatherInfo.value.warning = { level: '链路断开', title: '启用本地缓存数据' };
+        weatherInfo.value.ai_proposal = res.data.message;
       } else {
-        weatherInfo.value.warning = null;
-        weatherInfo.value.ai_proposal = '全域气象平稳，链路正常，各项全自动生产设备按标准策略运行。';
+        if (warn) {
+          weatherInfo.value.warning = { level: '黄色预警', title: `侦测到${text}过程` };
+          weatherInfo.value.ai_proposal = `感知到${text}。建议：暂停户外作业，切换排灌模式，机库物理锁定。`;
+        } else {
+          weatherInfo.value.warning = null;
+          weatherInfo.value.ai_proposal = '全域气象平稳，链路正常，各项全自动生产设备按标准策略运行。';
+        }
       }
     }
   } catch (e) {
-    weatherInfo.value.ai_proposal = '无法连接外部卫星链路，请检查网络。';
+    console.error(e);
+    weatherInfo.value.ai_proposal = '无法连接本地调度中枢，请检查 FastAPI 后端状态。';
   }
 };
 
