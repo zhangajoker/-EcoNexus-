@@ -1,4 +1,4 @@
- <template>
+<template>
   <div class="p-8 min-h-screen relative text-white bg-[#0a0c0a] overflow-hidden select-none">
 
     <div v-if="viewMode === 'map'" class="relative z-10 h-full flex flex-col view-animate">
@@ -29,20 +29,24 @@
         <div class="space-y-4 h-[650px] overflow-y-auto pr-2 custom-scrollbar">
           <div v-for="field in fields" :key="field.id"
                @click="triggerShuttle(field)"
-               class="bg-black/40 p-4 rounded-xl border-l-4 cursor-pointer border border-white/5 hover:border-eco-primary/30 transition-all duration-300 group relative overflow-hidden"
-               :class="field.status === '健康' ? 'border-l-emerald-500' : (field.status === '预警' ? 'border-l-yellow-500' : 'border-l-red-500 bg-red-950/5')">
+               class="pointer-events-auto bg-black/40 p-4 rounded-xl border-l-4 cursor-pointer border border-white/5 hover:border-eco-primary/30 transition-all duration-300 group relative overflow-hidden"
+               :class="field.status.includes('健康') ? 'border-l-emerald-500' : 'border-l-red-500 bg-red-950/5'">
+
             <div class="flex justify-between items-center mb-3">
-              <span class="font-bold text-lg tracking-wide text-white group-hover:text-eco-primary transition-colors">{{ field.name }}</span>
+              <span class="font-bold text-lg tracking-wide text-white group-hover:text-eco-primary transition-colors">
+                {{ field.name }}
+              </span>
               <span class="text-xs px-2 py-1 bg-black/60 rounded border shadow-inner font-mono"
-                    :class="field.status === '健康' ? 'text-emerald-400 border-emerald-500/20' : (field.status === '预警' ? 'text-yellow-400 border-yellow-500/20' : 'text-red-400 border-red-500/30 animate-pulse')">
+                    :class="field.status.includes('健康') ? 'text-emerald-400 border-emerald-500/20' : 'text-red-400 border-red-500/30 animate-pulse'">
                 {{ field.status }}
               </span>
             </div>
+
             <div class="grid grid-cols-2 gap-2 text-xs text-eco-text bg-black/30 p-2 rounded border border-white/5 font-mono">
-              <div>湿度: <span class="text-white">{{ field.moisture }}%</span></div>
-              <div>虫情: <span class="text-white">{{ field.pestIndex }}</span></div>
-              <div>叶绿素: <span class="text-white">{{ field.spad }}</span></div>
-              <div>温度: <span class="text-white">{{ field.temp }}°C</span></div>
+              <div>湿度: <span class="text-white">{{ field.moisture || 0 }}%</span></div>
+              <div>虫情: <span class="text-white">{{ field.pestIndex || '正常' }}</span></div>
+              <div>叶绿素: <span class="text-white">{{ field.spad || 0 }}</span></div>
+              <div>温度: <span class="text-white">{{ field.temp || 0 }}°C</span></div>
             </div>
           </div>
         </div>
@@ -89,7 +93,6 @@
       </div>
 
       <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1">
-
         <div class="lg:col-span-2 bg-black/40 border border-white/5 rounded-2xl relative overflow-hidden shadow-2xl h-[620px] flex flex-col justify-center items-center group">
           <template v-if="currentVisionVideo">
             <video :src="currentVisionVideo" autoplay loop muted playsinline
@@ -113,7 +116,6 @@
           </template>
 
           <div class="absolute inset-0 shadow-[inset_0_0_60px_rgba(0,0,0,0.8)] pointer-events-none z-10"></div>
-
           <div class="absolute bottom-0 left-0 w-full h-24 bg-gradient-to-t from-[#0a0c0a] to-transparent pointer-events-none z-10"></div>
 
           <div v-if="isScanning" class="absolute inset-0 z-20 pointer-events-none">
@@ -148,7 +150,7 @@
                   <span class="text-eco-primary font-bold">Jetson Orin</span>
                 </div>
                 <div class="flex justify-between text-gray-400">
-                  <span>摄像机</span><span class="text-gray-300">{{ selectedField?.id }}_RGB</span>
+                  <span>摄像机</span><span class="text-gray-300">{{ selectedField?.id || 'F-001' }}_RGB</span>
                 </div>
                 <div class="flex justify-between text-gray-400">
                   <span>部署模型</span><span class="text-gray-300">TianYan-v1.2</span>
@@ -162,7 +164,7 @@
                 <div v-if="diseaseDiagnosis !== null" class="mt-2 pt-2 border-t border-eco-primary/20 flex justify-between items-center text-xs">
                   <span class="text-gray-500 font-bold tracking-widest">智能诊断</span>
                   <span class="font-bold tracking-wide shadow-[0_0_8px_currentColor] px-1.5 py-0.5 rounded"
-                        :class="diseaseDiagnosis === 'Healthy' ? 'text-emerald-400 bg-emerald-500/10' : 'text-red-400 bg-red-500/10 animate-pulse'">
+                        :class="diseaseDiagnosis === 'Cassava_Healthy' ? 'text-emerald-400 bg-emerald-500/10' : 'text-red-400 bg-red-500/10 animate-pulse'">
                     {{ diseaseDiagnosis }}
                   </span>
                 </div>
@@ -208,7 +210,7 @@
                   <div class="text-gray-500 mb-1">容积含水率</div>
                   <div class="text-[9px] text-emerald-500/50 font-mono border border-emerald-500/20 px-1 rounded animate-pulse">实况</div>
                 </div>
-                <div class="relative z-10 text-white font-bold text-lg">{{ selectedField?.moisture }}%</div>
+                <div class="relative z-10 text-white font-bold text-lg">{{ selectedField?.moisture || 0 }}%</div>
                 <div ref="moistureSparkRef" class="absolute bottom-0 left-0 w-full h-[65%] opacity-50 group-hover:opacity-100 transition-opacity"></div>
               </div>
 
@@ -217,17 +219,17 @@
                   <div class="text-gray-500 mb-1">地表绝对温度</div>
                   <div class="text-[9px] text-blue-400/50 font-mono border border-blue-400/20 px-1 rounded animate-pulse">实况</div>
                 </div>
-                <div class="relative z-10 text-white font-bold text-lg">{{ selectedField?.temp }}°C</div>
+                <div class="relative z-10 text-white font-bold text-lg">{{ selectedField?.temp || 0 }}°C</div>
                 <div ref="tempSparkRef" class="absolute bottom-0 left-0 w-full h-[65%] opacity-50 group-hover:opacity-100 transition-opacity"></div>
               </div>
             </div>
 
             <div class="space-y-2 text-xs relative z-10">
               <div class="flex justify-between items-center bg-white/5 p-2 rounded border border-white/5">
-                <span class="text-gray-400">全氮 (N)</span><span class="text-white font-bold">{{ selectedField?.n }} <span class="text-[10px] text-gray-600">mg/kg</span></span>
+                <span class="text-gray-400">全氮 (N)</span><span class="text-white font-bold">{{ selectedField?.n || 0 }} <span class="text-[10px] text-gray-600">mg/kg</span></span>
               </div>
               <div class="flex justify-between items-center bg-white/5 p-2 rounded border border-white/5">
-                <span class="text-gray-400">有效磷 (P)</span><span class="text-white font-bold">{{ selectedField?.p }} <span class="text-[10px] text-gray-600">mg/kg</span></span>
+                <span class="text-gray-400">有效磷 (P)</span><span class="text-white font-bold">{{ selectedField?.p || 0 }} <span class="text-[10px] text-gray-600">mg/kg</span></span>
               </div>
             </div>
           </div>
@@ -317,7 +319,7 @@ const initIoTSparklines = () => {
 
   if (moistureSparkRef.value && selectedField.value) {
     moistureChart = echarts.init(moistureSparkRef.value);
-    const baseM = selectedField.value.moisture;
+    const baseM = selectedField.value.moisture || 40;
     mData = Array.from({length: 20}, () => baseM + (Math.random() * 2 - 1));
     moistureChart.setOption({
       grid: { left: 0, right: 0, top: 0, bottom: 0 },
@@ -338,7 +340,7 @@ const initIoTSparklines = () => {
 
   if (tempSparkRef.value && selectedField.value) {
     tempChart = echarts.init(tempSparkRef.value);
-    const baseT = selectedField.value.temp;
+    const baseT = selectedField.value.temp || 25;
     tData = Array.from({length: 20}, () => baseT + (Math.random() * 1 - 0.5));
     tempChart.setOption({
       grid: { left: 0, right: 0, top: 0, bottom: 0 },
@@ -365,12 +367,12 @@ const startTelemetryAnim = () => {
     uavAltitude.value = (2.4 + (Math.random() * 0.1 - 0.05)).toFixed(2);
 
     if (moistureChart && selectedField.value) {
-      mData.push(selectedField.value.moisture + (Math.random() * 2 - 1));
+      mData.push((selectedField.value.moisture || 40) + (Math.random() * 2 - 1));
       if (mData.length > 20) mData.shift();
       moistureChart.setOption({ series: [{ data: mData }] });
     }
     if (tempChart && selectedField.value) {
-      tData.push(selectedField.value.temp + (Math.random() * 1 - 0.5));
+      tData.push((selectedField.value.temp || 25) + (Math.random() * 1 - 0.5));
       if (tData.length > 20) tData.shift();
       tempChart.setOption({ series: [{ data: tData }] });
     }
@@ -552,15 +554,19 @@ const initWarpDrive = () => {
 const initMap = () => {
   if (!mapRef.value || fields.value.length === 0) return;
   myChart = echarts.init(mapRef.value);
+
   const scatterData = fields.value.map(f => {
-    let color = '#10b981';
-    let symbolSize = 16;
-    if (f.status === '高危') { color = '#ef4444'; symbolSize = 24; }
-    if (f.status === '预警') { color = '#eab308'; symbolSize = 20; }
-    return { name: f.name, value: [f.x, f.y], itemStyle: { color: color }, symbolSize: symbolSize, rawData: f };
+    const isHealthy = f.status.includes('健康');
+    return {
+      name: f.name,
+      value: [f.x, f.y],
+      itemStyle: { color: isHealthy ? '#10b981' : '#ef4444' },
+      symbolSize: isHealthy ? 16 : 24,
+      rawData: f
+    };
   });
 
-  const heatData = fields.value.filter(f => f.status === '高危').map(f => ({
+  const heatData = fields.value.filter(f => !f.status.includes('健康')).map(f => ({
     name: f.name, value: [f.x, f.y], itemStyle: { color: 'rgba(239, 68, 68, 0.15)' }, symbolSize: 150
   }));
 

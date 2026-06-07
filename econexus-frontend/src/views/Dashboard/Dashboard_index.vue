@@ -29,7 +29,6 @@
     </transition>
 
     <div class="relative z-10">
-
       <div class="flex justify-between items-center mb-8 border-b border-white/10 pb-6">
         <div class="flex items-center gap-4">
           <div class="scale-75 origin-left"><EcoLogo /></div>
@@ -62,9 +61,7 @@
       </div>
 
       <div v-if="errorMessage" class="bg-red-500/20 border border-red-500/50 text-red-400 px-4 py-2 rounded mb-6 text-sm flex items-center gap-2">
-        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-          <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
-        </svg>
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd" /></svg>
         {{ errorMessage }}
       </div>
 
@@ -133,13 +130,7 @@
       <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
 
         <div @click="openDrillDown('nitrogen')" class="glass-card p-5 rounded-lg border border-white/5 cursor-pointer group hover:-translate-y-1 hover:shadow-[0_0_30px_rgba(16,185,129,0.15)] transition-all duration-300 relative overflow-hidden">
-          <div class="absolute top-0 left-0 w-3 h-3 border-t border-l border-emerald-500/50"></div>
-          <div class="absolute top-0 right-0 w-3 h-3 border-t border-r border-emerald-500/50"></div>
-          <div class="absolute bottom-0 left-0 w-3 h-3 border-b border-l border-emerald-500/50"></div>
-          <div class="absolute bottom-0 right-0 w-3 h-3 border-b border-r border-emerald-500/50"></div>
-
           <div class="absolute -right-2 top-4 text-7xl font-black text-white/[0.02] italic font-mono group-hover:scale-110 transition-transform pointer-events-none">N1</div>
-
           <div class="flex justify-between items-center mb-4 relative z-10">
             <div class="flex items-center gap-2">
               <span class="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_5px_#10b981]"></span>
@@ -147,34 +138,18 @@
             </div>
             <span class="text-[9px] text-emerald-500/50 font-mono border border-emerald-500/20 px-1 rounded">SYS.ON</span>
           </div>
-
           <div class="flex items-baseline gap-3 mb-1 relative z-10">
             <div class="text-4xl font-mono text-white tracking-tight">
                <span v-if="isLoading" class="animate-pulse">--</span>
                <span v-else>{{ apiData.nitrogen_efficiency?.current_value }}</span><span class="text-base text-emerald-500 ml-1">%</span>
             </div>
-            <div class="flex items-center text-[10px] text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded mb-2 border border-emerald-500/20">
-              <svg class="w-3 h-3 mr-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18" /></svg>
-              1.2%
-            </div>
           </div>
           <p class="text-[10px] text-gray-400/90 font-mono tracking-widest relative z-10 mb-2">氮肥利用率动态监测</p>
-
-          <div class="h-[50px] w-full opacity-60 group-hover:opacity-100 transition-opacity relative z-10">
-            <div ref="sparklineNitrogen" class="w-full h-full"></div>
-          </div>
+          <div class="h-[50px] w-full opacity-60 group-hover:opacity-100 transition-opacity relative z-10"><div ref="sparklineNitrogen" class="w-full h-full"></div></div>
         </div>
 
-        <div @click="openDrillDown('pest')"
-             class="glass-card p-5 rounded-lg border border-white/5 cursor-pointer group hover:-translate-y-1 hover:shadow-[0_0_30px_rgba(234,179,8,0.15)] transition-all duration-300 relative overflow-hidden"
-             :class="{'alarm-ripple-yellow': apiData.pest_risk?.current_value === 'MEDIUM' && !ackAlarms.pest}">
-          <div class="absolute top-0 left-0 w-3 h-3 border-t border-l border-yellow-500/50"></div>
-          <div class="absolute top-0 right-0 w-3 h-3 border-t border-r border-yellow-500/50"></div>
-          <div class="absolute bottom-0 left-0 w-3 h-3 border-b border-l border-yellow-500/50"></div>
-          <div class="absolute bottom-0 right-0 w-3 h-3 border-b border-r border-yellow-500/50"></div>
-
+        <div @click="openDrillDown('pest')" class="glass-card p-5 rounded-lg border border-white/5 cursor-pointer group hover:-translate-y-1 hover:shadow-[0_0_30px_rgba(234,179,8,0.15)] transition-all duration-300 relative overflow-hidden" :class="{'alarm-ripple-yellow': apiData.pest_risk?.current_value === 'MEDIUM' && !ackAlarms.pest}">
           <div class="absolute -right-2 top-4 text-7xl font-black text-white/[0.02] italic font-mono group-hover:scale-110 transition-transform pointer-events-none">P2</div>
-
           <div class="flex justify-between items-center mb-4 relative z-10">
             <div class="flex items-center gap-2">
               <span class="w-1.5 h-1.5 bg-yellow-500 rounded-full animate-pulse shadow-[0_0_5px_#eab308]"></span>
@@ -182,32 +157,18 @@
             </div>
             <span class="text-[9px] text-yellow-500/50 font-mono border border-yellow-500/20 px-1 rounded animate-pulse">DETECT</span>
           </div>
-
           <div class="flex items-baseline gap-3 mb-1 relative z-10">
             <div class="text-2xl font-semibold tracking-widest" :class="apiData.pest_risk?.current_value === 'MEDIUM' ? 'text-yellow-400' : 'text-emerald-500'">
               <span v-if="isLoading" class="animate-pulse">LOAD</span>
               <span v-else>{{ apiData.pest_risk?.current_value === 'MEDIUM' ? '中等' : apiData.pest_risk?.current_value }}</span>
             </div>
-            <div v-if="apiData.pest_risk?.current_value === 'MEDIUM'" class="flex items-center text-[10px] text-yellow-400 bg-yellow-400/10 px-1.5 py-0.5 rounded mb-1 border border-yellow-400/20">
-              <svg class="w-3 h-3 mr-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
-              LV.2
-            </div>
           </div>
           <p class="text-[10px] text-gray-400/90 font-mono tracking-widest relative z-10 mb-2 mt-2">边缘视觉推断 ACTIVE</p>
-
-          <div class="h-[50px] w-full opacity-60 group-hover:opacity-100 transition-opacity relative z-10 mt-1">
-            <div ref="sparklinePest" class="w-full h-full"></div>
-          </div>
+          <div class="h-[50px] w-full opacity-60 group-hover:opacity-100 transition-opacity relative z-10 mt-1"><div ref="sparklinePest" class="w-full h-full"></div></div>
         </div>
 
         <div @click="openDrillDown('moisture')" class="glass-card p-5 rounded-lg border border-white/5 cursor-pointer group hover:-translate-y-1 hover:shadow-[0_0_30px_rgba(96,165,250,0.15)] transition-all duration-300 relative overflow-hidden">
-          <div class="absolute top-0 left-0 w-3 h-3 border-t border-l border-blue-400/50"></div>
-          <div class="absolute top-0 right-0 w-3 h-3 border-t border-r border-blue-400/50"></div>
-          <div class="absolute bottom-0 left-0 w-3 h-3 border-b border-l border-blue-400/50"></div>
-          <div class="absolute bottom-0 right-0 w-3 h-3 border-b border-r border-blue-400/50"></div>
-
           <div class="absolute -right-2 top-4 text-7xl font-black text-white/[0.02] italic font-mono group-hover:scale-110 transition-transform pointer-events-none">M3</div>
-
           <div class="flex justify-between items-center mb-4 relative z-10">
             <div class="flex items-center gap-2">
               <span class="w-1.5 h-1.5 bg-blue-400 rounded-full animate-pulse shadow-[0_0_5px_#60a5fa]"></span>
@@ -215,26 +176,17 @@
             </div>
             <span class="text-[9px] text-blue-400/50 font-mono border border-blue-400/20 px-1 rounded">SYNC</span>
           </div>
-
           <div class="flex items-baseline gap-3 mb-1 relative z-10">
             <div class="text-4xl font-mono text-white tracking-tight">
                <span v-if="isLoading" class="animate-pulse">--</span>
                <span v-else>{{ apiData.soil_moisture?.current_value }}</span><span class="text-base text-blue-400 ml-1">%</span>
             </div>
-            <div class="flex items-center text-[10px] text-blue-400 bg-blue-400/10 px-1.5 py-0.5 rounded mb-2 border border-blue-400/20">
-              <svg class="w-3 h-3 mr-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3" /></svg>
-              0.8%
-            </div>
           </div>
           <p class="text-[10px] text-gray-400/90 font-mono tracking-widest relative z-10 mb-2">雷达含水量回传</p>
-
-          <div class="h-[50px] w-full opacity-60 group-hover:opacity-100 transition-opacity relative z-10">
-            <div ref="sparklineMoisture" class="w-full h-full"></div>
-          </div>
+          <div class="h-[50px] w-full opacity-60 group-hover:opacity-100 transition-opacity relative z-10"><div ref="sparklineMoisture" class="w-full h-full"></div></div>
         </div>
 
       </div>
-
     </div>
 
     <transition name="fade">
@@ -244,10 +196,12 @@
           <button @click="closeModal" class="absolute top-5 right-5 text-gray-500 hover:text-eco-primary transition-colors">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
+
           <div v-if="isDrilling" class="h-[400px] flex flex-col items-center justify-center text-eco-primary">
             <svg class="animate-spin h-10 w-10 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
             <span class="tracking-widest font-mono text-sm">云端时序溯源中...</span>
           </div>
+
           <div v-else>
             <div class="border-b border-white/10 pb-4 mb-6">
               <h3 class="text-xl md:text-2xl font-bold text-white flex items-center gap-3">
@@ -262,6 +216,7 @@
               </div>
             </div>
             <div ref="chartRef" class="w-full h-[300px] bg-black/40 rounded-lg border border-white/5 mb-6"></div>
+
             <div class="flex flex-wrap gap-4">
               <div v-for="(dev, idx) in drillData?.device_status" :key="idx" class="bg-black/60 px-3 py-2 rounded border border-white/5 flex items-center gap-2">
                 <span class="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_5px_#10b981]"></span>
@@ -279,36 +234,27 @@
 import { ref, onMounted, onUnmounted, nextTick } from 'vue';
 import axios from 'axios';
 import * as echarts from 'echarts';
+// 注意：如果你的项目中没有 EcoLogo 组件，可能会报错，请确认路径或删除 <EcoLogo />
 import EcoLogo from '../../components/EcoLogo.vue';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
 const isLoading = ref(true);
-const apiData = ref({});
 const errorMessage = ref('');
 const datePart = ref('');
 const timePart = ref('');
+
 let clockTimer = null;
+let dashboardTimer = null;
+let drillTimer = null; // 【新增】用于自动刷新弹窗折线图的定时器
 
-const updateClock = () => {
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, '0');
-  const d = String(now.getDate()).padStart(2, '0');
-  const hh = String(now.getHours()).padStart(2, '0');
-  const mm = String(now.getMinutes()).padStart(2, '0');
-  const ss = String(now.getSeconds()).padStart(2, '0');
+const apiData = ref({
+  efficiency_score: '--',
+  nitrogen_efficiency: { current_value: '--', trend_value: 0, status_tag: '--', ai_analysis: '' },
+  pest_risk: { current_value: '--', status_tag: '--', ai_analysis: '' },
+  soil_moisture: { current_value: '--', trend_value: 0, status_tag: '--', ai_analysis: '' }
+});
 
-  // 分离日期和时间
-  datePart.value = `${y}.${m}.${d}`;
-  timePart.value = `${hh}:${mm}:${ss}`;
-
-  // 动态计算距离下一个真实整秒的毫秒差，实现精准对齐防漂移
-  const msUntilNextSecond = 1000 - now.getMilliseconds();
-  clockTimer = setTimeout(updateClock, msUntilNextSecond);
-};
 const ackAlarms = ref({ nitrogen: false, pest: false, moisture: false });
-
-// 引用微缩图容器
 const sparklineNitrogen = ref(null);
 const sparklinePest = ref(null);
 const sparklineMoisture = ref(null);
@@ -319,11 +265,24 @@ const weatherInfo = ref({
   ai_proposal: 'AI 气象感知模型全域扫描中...'
 });
 
-// 【核心修改点】：重构天气请求逻辑，走后端代理接口
+const updateClock = () => {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth() + 1).padStart(2, '0');
+  const d = String(now.getDate()).padStart(2, '0');
+  const hh = String(now.getHours()).padStart(2, '0');
+  const mm = String(now.getMinutes()).padStart(2, '0');
+  const ss = String(now.getSeconds()).padStart(2, '0');
+
+  datePart.value = `${y}.${m}.${d}`;
+  timePart.value = `${hh}:${mm}:${ss}`;
+  const msUntilNextSecond = 1000 - now.getMilliseconds();
+  clockTimer = setTimeout(updateClock, msUntilNextSecond);
+};
+
 const fetchWeather = async () => {
   try {
     const res = await axios.get(`${API_BASE}/api/weather`);
-
     if (res.status === 200) {
       const cur = res.data.current;
       weatherInfo.value.temp = cur.temperature_2m + '°C';
@@ -339,7 +298,6 @@ const fetchWeather = async () => {
 
       weatherInfo.value.condition = text;
 
-      // 判断是否是后端的兜底模拟数据
       if (res.data.status === 'fallback') {
         weatherInfo.value.condition = '边缘缓存模式';
         weatherInfo.value.warning = { level: '链路断开', title: '启用本地缓存数据' };
@@ -360,6 +318,15 @@ const fetchWeather = async () => {
   }
 };
 
+const fetchDashboardData = async () => {
+  try {
+    const res = await axios.get(`${API_BASE}/api/dashboard/overview`);
+    apiData.value = res.data;
+  } catch (e) {
+    console.error('看板数据后台同步异常:', e);
+  }
+};
+
 const isModalOpen = ref(false);
 const isDrilling = ref(false);
 const drillData = ref(null);
@@ -375,15 +342,8 @@ const initSparkline = (el, data, color) => {
     yAxis: { type: 'value', show: false, min: 'dataMin' },
     series: [{
       data: data, type: 'line', smooth: true, symbol: 'none',
-      lineStyle: {
-        width: 2,
-        color: color,
-        shadowBlur: 8,          // 新增：折线发光模糊度
-        shadowColor: color,     // 新增：折线发光颜色
-        shadowOffsetY: 2        // 新增：发光偏移
-      },
+      lineStyle: { width: 2, color: color, shadowBlur: 8, shadowColor: color, shadowOffsetY: 2 },
       areaStyle: {
-        // 将顶部的透明度从 33 改为 66，增强赛博朋克光晕感
         color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
           { offset: 0, color: `${color}66` },
           { offset: 1, color: 'transparent' }
@@ -400,14 +360,13 @@ const handleResize = () => {
 };
 
 onMounted(async () => {
-updateClock();
+  updateClock();
   window.addEventListener('resize', handleResize);
-  fetchWeather();
+  await fetchWeather();
+
   try {
-    const res = await axios.get(`${API_BASE}/api/dashboard/overview`);
-    apiData.value = res.data;
+    await fetchDashboardData();
     await nextTick();
-    // 初始化微缩图
     initSparkline(sparklineNitrogen.value, [70, 72, 75, 71, 78, 82, 82.5], '#10b981');
     initSparkline(sparklinePest.value, [1, 2, 1, 3, 2, 2, 1.5], '#eab308');
     initSparkline(sparklineMoisture.value, [40, 41, 39, 43, 42, 42.8, 42.8], '#60a5fa');
@@ -416,50 +375,100 @@ updateClock();
   } finally {
     setTimeout(() => isLoading.value = false, 1500);
   }
+
+  dashboardTimer = setInterval(() => { fetchDashboardData(); }, 3000);
 });
 
 onUnmounted(() => {
-if (clockTimer) clearTimeout(clockTimer);
+  if (clockTimer) clearTimeout(clockTimer);
+  if (dashboardTimer) clearInterval(dashboardTimer);
+  if (drillTimer) clearInterval(drillTimer);
   window.removeEventListener('resize', handleResize);
   myChart?.dispose();
   sparklineInstances.forEach(ins => ins.dispose());
 });
 
+// 【核心逻辑】：弹窗开启并自动拉取高频数据
+// 【核心逻辑】：修复弹窗图表延迟显示的 Bug
 const openDrillDown = async (id) => {
   if (isDrilling.value) return;
-
-  // 👇 新增这行核心代码：当点击卡片时，标记该模块已被确认，关闭涟漪！
   ackAlarms.value[id] = true;
-
   isModalOpen.value = true;
-  isDrilling.value = true;
-  try {
-    const res = await axios.get(`${API_BASE}/api/dashboard/drill-down/${id}`);
-    drillData.value = res.data;
-    isDrilling.value = false;
-    await nextTick();
-    renderChart(drillData.value.timeline_data, {pest:'#eab308', moisture:'#60a5fa', nitrogen:'#10b981'}[id] || '#10b981');
-  } catch (e) { isDrilling.value = false; }
-};
+  isDrilling.value = true; // 开启转圈动画
 
+  const refreshDrillData = async () => {
+    try {
+      const res = await axios.get(`${API_BASE}/api/dashboard/drill-down/${id}`);
+      drillData.value = res.data;
+
+      // 【关键修复】：必须先把加载动画关掉，让画图的 div 渲染出来！
+      if (isDrilling.value) {
+        isDrilling.value = false;
+      }
+
+      // 等待 Vue 把 DOM 更新完毕（把 chartRef 挂载到页面上）
+      await nextTick();
+
+      // 现在可以安全地画图了，瞬间出图！
+      renderChart(drillData.value.timeline_data, {pest:'#eab308', moisture:'#60a5fa', nitrogen:'#10b981'}[id] || '#10b981');
+    } catch (e) {
+      console.error('拉取溯源数据失败:', e);
+      isDrilling.value = false; // 报错了也要关掉加载动画
+    }
+  };
+
+  // 第一次立刻拉取数据并渲染（秒开）
+  await refreshDrillData();
+
+  // 随后每 3 秒自动刷新一次，实现实时波浪动态
+  drillTimer = setInterval(refreshDrillData, 3000);
+};
 const closeModal = () => {
   isModalOpen.value = false;
-  myChart?.dispose();
-  myChart = null;
+  if (drillTimer) clearInterval(drillTimer); // 关闭弹窗时必须清理定时器
+  if (myChart) {
+    myChart.dispose();
+    myChart = null;
+  }
 };
 
+// 【核心图表逻辑】：唯一的一份 renderChart 函数
 const renderChart = (data, color) => {
   if (!chartRef.value) return;
+
+  if (myChart) myChart.dispose(); // 重绘前销毁旧实例，防止内存泄漏和重叠
   myChart = echarts.init(chartRef.value);
+
   myChart.setOption({
     tooltip: { trigger: 'axis', backgroundColor: 'rgba(0,0,0,0.9)', borderColor: color, textStyle: { color: '#fff' } },
     grid: { left: '3%', right: '4%', bottom: '3%', top: '10%', containLabel: true },
-    xAxis: { type: 'category', boundaryGap: false, data: data.map(i=>i.time), axisLine: { lineStyle: { color: '#333' } }, axisLabel: { color: '#9ca3af' } },
-    yAxis: { type: 'value', splitLine: { lineStyle: { color: 'rgba(255,255,255,0.05)' } }, axisLabel: { color: '#9ca3af' } },
+    xAxis: {
+      type: 'category',
+      boundaryGap: false,
+      data: data.map(i => i.time),
+      axisLine: { lineStyle: { color: '#333' } },
+      // 【高频优化】: 解决文字重叠问题，在 36 个点时，每隔几个点显示一次时间戳
+      axisLabel: { color: '#9ca3af', interval: 5, rotate: 0 }
+    },
+    yAxis: {
+      type: 'value',
+      splitLine: { lineStyle: { color: 'rgba(255,255,255,0.05)' } },
+      axisLabel: { color: '#9ca3af' },
+      min: 'dataMin' // 让 Y 轴的起点贴近真实数据，波动更明显
+    },
     series: [{
-      data: data.map(i=>i.value), type: 'line', smooth: true, itemStyle: { color: color },
+      data: data.map(i => i.value),
+      type: 'line',
+      smooth: true,
+      symbol: 'none', // 隐藏每个点的小圆圈，只留纯粹的曲线
+      itemStyle: { color: color },
       lineStyle: { color: color, width: 3 },
-      areaStyle: { color: new echarts.graphic.LinearGradient(0,0,0,1,[{offset:0, color:`${color}66`},{offset:1, color:`${color}00`}]) }
+      areaStyle: {
+        color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+          { offset: 0, color: `${color}66` },
+          { offset: 1, color: `${color}00` }
+        ])
+      }
     }]
   });
 };
@@ -491,7 +500,7 @@ const renderChart = (data, color) => {
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
 }
-/* 6. 动态警报涟漪特效 (向外扩散的雷达波) */
+
 @keyframes cyber-ripple-yellow {
   0% { box-shadow: 0 0 0 0 rgba(234, 179, 8, 0.4); border-color: rgba(234, 179, 8, 0.8); }
   70% { box-shadow: 0 0 0 20px rgba(234, 179, 8, 0); border-color: rgba(255, 255, 255, 0.05); }
@@ -499,7 +508,6 @@ const renderChart = (data, color) => {
 }
 
 .alarm-ripple-yellow {
-  /* 使用柔和的物理贝塞尔曲线，让涟漪扩散更平滑 */
   animation: cyber-ripple-yellow 2s cubic-bezier(0.16, 1, 0.3, 1) infinite;
   z-index: 20;
 }
