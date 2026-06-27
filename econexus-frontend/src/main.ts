@@ -1,8 +1,14 @@
 import { createApp } from 'vue'
-import './style.css'
+import { createPinia } from 'pinia' // 1. 必须导入 Pinia
 import App from './App.vue'
-import { router } from './router' // 引入你的路由实例
+import { router } from './router'       // 导入你的路由
+import './style.css'                // 导入你的 Tailwind 全局样式
 
 const app = createApp(App)
-app.use(router) // 必须有这一行，把路由注入到 app 中
+const pinia = createPinia()
+
+// 2. 核心顺序：必须先挂载 pinia，再挂载 router，最后 mount！
+app.use(pinia)
+app.use(router)
+
 app.mount('#app')
