@@ -8,8 +8,8 @@ if __name__ == '__main__':
     print("🔥 天衍·区域化害虫检测大脑 V2.0 稳健性训练启动...")
 
     results = model.train(
-        # 1. 指向你的害虫数据集 YAML 配置文件 (请确认路径正确)
-        data=r"C:\Users\admin\PycharmProjects\-EcoNexus-\datasets\pests_data\data.yaml",
+        # 1. 指向你的害虫数据集 YAML 配置文件 (已更新为 D 盘路径)
+        data=r"D:\-EcoNexus-\ai_training\datasets\pests_data\data.yaml",
 
         # 2. 基础控制 (目标检测通常需要更长的时间和更高的分辨率)
         epochs=100,  # 轮数拉长，由早停机制把关
@@ -41,4 +41,4 @@ if __name__ == '__main__':
         erasing=0.0,
     )
 
-    print("害虫检测 V2.0 训练完成！马赛克增强与智能早停已全功率护航！")
+    print("✅ 害虫检测 V2.0 训练完成！马赛克增强与智能早停已全功率护航！")

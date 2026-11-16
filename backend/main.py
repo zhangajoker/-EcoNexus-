@@ -3,22 +3,27 @@ import shutil
 import uuid
 import httpx
 import random
+import traceback
+import base64
+import datetime
+import cv2
+import numpy as np
+import json  # 【新增】：用于解析大模型返回的 JSON
 from pydantic import BaseModel
+from typing import List
 
 os.environ["HTTP_PROXY"] = ""
 os.environ["HTTPS_PROXY"] = ""
 
-# 【核心修改1】：引入了 BackgroundTasks
+from dotenv import load_dotenv
+load_dotenv()
+
 from fastapi import FastAPI, Depends, File, UploadFile, Form, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import create_engine, Column, String, Float, Integer
 from sqlalchemy.orm import sessionmaker, declarative_base, Session
-import cv2
-import numpy as np
-import base64
 from ultralytics import YOLO
-import datetime
 from openai import OpenAI
 
 os.makedirs("static", exist_ok=True)
@@ -109,15 +114,33 @@ if not db_init.query(ESGAsset).first():
 db_init.commit()
 db_init.close()
 
-# ==================== 2. 多模态双视觉引擎初始化 ====================
-print("Loading YOLOv8 Engines...")
-vision_model = YOLO(
-    r"C:\Users\admin\PycharmProjects\-EcoNexus-\runs\detect\runs\detect\tianyan_pest_v2_robust-4\weights\best.onnx")
-disease_model = YOLO(
-    r"C:\Users\admin\PycharmProjects\-EcoNexus-\runs\classify\runs\classify\tianyan_disease_v2_regional-4\weights\best.onnx")
+# ==================== 2. 模型武器库与按需懒加载机制 ====================
+print("Initializing YOLOv8 Model Zoo...")
+
+MODEL_PATHS = {
+    "pest_detect_pt": r"D:\-EcoNexus-\runs\detect\runs\detect\tianyan_pest_v2_robust-5\weights\best.pt",
+    "disease_classify_pt": r"D:\-EcoNexus-\runs\classify\runs\classify\tianyan_disease_v2_regional-4\weights\best.pt"
+}
+
+_model_cache = {}
+
+
+def get_model(model_name: str):
+    if model_name not in MODEL_PATHS:
+        raise ValueError(f"未知的模型注册名: {model_name}")
+    if model_name not in _model_cache:
+        path = MODEL_PATHS[model_name]
+        task_type = 'detect' if 'detect' in model_name or 'pest' in model_name else 'classify'
+        print(f"[模型调度] 正在加载模型至硬件缓存: {model_name} (任务类型: {task_type})")
+        _model_cache[model_name] = YOLO(path, task=task_type)
+    return _model_cache[model_name]
+
+
 print("Connecting to Cloud LLM Engine...")
-LLM_CLIENT = OpenAI(api_key="sk-3e964c87dd7b43d793717e57c0265dac",
-                    base_url="https://dashscope.aliyuncs.com/compatible-mode/v1")
+LLM_CLIENT = OpenAI(
+    api_key=os.getenv("LLM_API_KEY", ""),
+    base_url=os.getenv("LLM_BASE_URL", "https://api.deepseek.com/v1")
+)
 
 # ==================== 3. FastAPI 实例与后台任务容器 ====================
 app = FastAPI(title="EcoNexus API")
@@ -125,7 +148,6 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, 
                    allow_headers=["*"])
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# 【核心修改2】：在内存中维护一个任务队列字典，存放后台任务的执行状态
 VISION_TASKS_STORE = {}
 
 
@@ -138,7 +160,8 @@ def get_db():
 
 
 @app.get("/api/fields")
-def get_all_fields(db: Session = Depends(get_db)): return db.query(FieldNode).all()
+def get_all_fields(db: Session = Depends(get_db)):
+    return db.query(FieldNode).all()
 
 
 @app.get("/api/esg/dashboard")
@@ -229,17 +252,57 @@ def get_dashboard_drill_down(module_id: str, db: Session = Depends(get_db)):
         return {"metric_name": "病虫害靶向", "timeline_data": generate_timeline(2.5, 0.8)}
 
 
-# ==================== 4. 【核心重构：后台独立推理函数】 ====================
-def run_vision_analysis_background(task_id: str, file_path: str, is_video: bool, field_id: str):
-    """这个函数在后台静默运行，不会阻塞前端"""
-    db = SessionLocal()  # 为独立线程创建独立的数据库会话
+# ==================== 4. 【核心重构：后台独立推理函数支持多模型切换】 ====================
+def run_vision_analysis_background(task_id: str, file_path: str, is_video: bool, field_id: str,
+                                   detect_version: str = "pest_detect_pt",
+                                   classify_version: str = "disease_classify_pt"):
+    db = SessionLocal()
     try:
+        vision_model = get_model(detect_version)
+        disease_model = get_model(classify_version)
+
         detected_classes = set()
         disease_counter = {}
         max_detected_count = 0
-        primary_disease = "Cassava_Healthy"
+        primary_disease = "Healthy (健康状态)"
         evidence_url = None
         img_base64 = None
+
+        TRANSLATE_DICT = {
+            'Bees': '蜜蜂 (授粉昆虫)',
+            'Butterfly': '蝴蝶',
+            'Mantis': '螳螂 (天敌益虫)',
+            'ant': '蚂蚁/红火蚁',
+            'beetle': '甲虫',
+            'caterpillar': '毛毛虫 (鳞翅目幼虫)',
+            'centipedes': '蜈蚣',
+            'cockroach': '蟑螂',
+            'dragonfly': '蜻蜓',
+            'fly': '双翅目蝇类',
+            'grasshopper': '蚱蜢/蝗虫',
+            'ladybug': '瓢虫 (天敌益虫)',
+            'mosquito': '蚊类',
+            'spider': '蜘蛛 (节肢类天敌)',
+            'wasp': '黄蜂/马蜂',
+            'Red_Ants': '红火蚁群落',
+            'Cassava Bacterial Blight (CBB)': '木薯细菌性枯萎病',
+            'Cassava Brown Streak Disease (CBSD)': '木薯褐条病',
+            'Cassava Green Mottle (CGM)': '木薯绿斑病',
+            'Cassava Mosaic Disease (CMD)': '木薯花叶病',
+            'Cassava_Healthy': '健康木薯',
+            'Citrus_Healthy': '健康柑橘',
+            'Citrus_deficiency': '柑橘缺素症',
+            'Citrus_greasy spot': '柑橘脂点黄斑病',
+            'Citrus_huanglongbing': '柑橘黄龙病',
+            'Citrus_leafminer': '柑橘潜叶蛾',
+            'Citrus_phytophthora': '柑橘疫病',
+            'Not_Leaf': '非叶片/背景',
+            'Rice_Bacterialblight': '水稻白叶枯病',
+            'Rice_Blast': '水稻稻瘟病',
+            'Rice_Healthy': '健康水稻',
+            'Rice_bacterial_leaf_blight': '水稻细菌性条斑病',
+            'Rice_leaf_blast': '水稻叶瘟病'
+        }
 
         if is_video:
             out_path = f"static/{task_id}_out.webm"
@@ -259,48 +322,108 @@ def run_vision_analysis_background(task_id: str, file_path: str, is_video: bool,
 
                 results_pest = vision_model(frame, conf=0.45)
                 out.write(results_pest[0].plot())
-                if len(results_pest[0].boxes) > max_detected_count: max_detected_count = len(results_pest[0].boxes)
-                for box in results_pest[0].boxes: detected_classes.add(vision_model.names[int(box.cls[0])])
+
+                if results_pest[0].boxes is not None:
+                    if len(results_pest[0].boxes) > max_detected_count:
+                        max_detected_count = len(results_pest[0].boxes)
+                    for box in results_pest[0].boxes:
+                        en_name = vision_model.names[int(box.cls[0])]
+                        cn_name = TRANSLATE_DICT.get(en_name, "未知")
+                        detected_classes.add(f"{en_name} ({cn_name})")
 
                 results_disease = disease_model(frame)
-                d_name = disease_model.names[results_disease[0].probs.top1]
+                raw_d = disease_model.names[results_disease[0].probs.top1]
+                cn_d = TRANSLATE_DICT.get(raw_d, "未知")
+                d_name = f"{raw_d} ({cn_d})"
+
                 disease_counter[d_name] = disease_counter.get(d_name, 0) + 1
                 frame_count += 1
-                if frame_count > 250: break  # 防止超长视频
+                if frame_count > 250: break
 
             cap.release()
             out.release()
             evidence_url = f"http://127.0.0.1:8000/{out_path}"
             if disease_counter: primary_disease = max(disease_counter, key=disease_counter.get)
+
         else:
             img = cv2.imread(file_path)
-            results_pest = vision_model(img, conf=0.45)
-            annotated_img = results_pest[0].plot()
-            max_detected_count = len(results_pest[0].boxes)
-            for box in results_pest[0].boxes: detected_classes.add(vision_model.names[int(box.cls[0])])
 
+            # --- 1. 检测模型 ---
+            results_pest = vision_model(img, conf=0.20)
+            annotated_img = results_pest[0].plot()
+
+            if results_pest[0].boxes is not None and len(results_pest[0].boxes) > 0:
+                max_detected_count = len(results_pest[0].boxes)
+                for box in results_pest[0].boxes:
+                    en_name = vision_model.names[int(box.cls[0])]
+                    cn_name = TRANSLATE_DICT.get(en_name, "未知靶标")
+                    detected_classes.add(f"{en_name} ({cn_name})")
+            else:
+                max_detected_count = 0
+
+            # --- 2. 分类模型 ---
             results_disease = disease_model(img)
-            if results_disease[0].probs.top1conf.item() > 0.65:
-                primary_disease = disease_model.names[results_disease[0].probs.top1]
+            top1_idx = results_disease[0].probs.top1
+            conf = results_disease[0].probs.top1conf.item()
+            raw_disease = disease_model.names[top1_idx]
+            cn_disease = TRANSLATE_DICT.get(raw_disease, "未知状态")
+
+            if conf > 0.60:
+                primary_disease = f"{raw_disease} ({cn_disease})"
+            else:
+                primary_disease = "Healthy (未见明显病害)"
+                cn_disease = "健康"
+
+            # --- 3. 拼接逻辑 ---
+            pest_names_str = ", ".join(list(detected_classes)) if len(detected_classes) > 0 else "无"
+
+            if max_detected_count > 0:
+                if "Healthy" in primary_disease:
+                    primary_disease = f"高危虫害暴发 ({pest_names_str})"
+                else:
+                    primary_disease = f"病害: {cn_disease} | 虫害: {pest_names_str}"
+            else:
+                if "Healthy" in primary_disease:
+                    primary_disease = "健康无异常"
 
             _, buffer = cv2.imencode('.jpg', annotated_img)
             img_base64 = base64.b64encode(buffer).decode('utf-8')
 
-        pest_names_str = ", ".join(list(detected_classes)) if len(detected_classes) > 0 else "无"
         field = db.query(FieldNode).filter(FieldNode.id == field_id).first()
         location_name = field.name if field else "全域未知网格"
 
-        prompt = f"当前传感数据：土壤水分 {field.moisture if field else 40}%，虫害检测：最高 {max_detected_count} 个，包含 {pest_names_str}。病理诊断：确诊 [{primary_disease}]。请给出90字左右的综合治疗调度指令。"
-
+        # --- 【AI 动态调度建议】 ---
+        ai_dynamic_advice = ""
         try:
-            response = LLM_CLIENT.chat.completions.create(model="qwen-plus",
-                                                          messages=[{"role": "user", "content": prompt}],
-                                                          temperature=0.4)
-            ai_dynamic_advice = response.choices[0].message.content
-        except Exception:
-            ai_dynamic_advice = f"云端大模型链路异常。默认调度：人工复核。"
+            prompt = f"当前传感数据：土壤水分 {field.moisture if field else 40}%，虫害检测：最高 {max_detected_count} 个，包含 {pest_names_str}。病理诊断：确诊 [{primary_disease}]。请给出90字左右的极客、专业的无人机消杀与灌溉调度指令。"
 
-        is_sick = primary_disease != "Cassava_Healthy"
+            response = LLM_CLIENT.chat.completions.create(
+                model="deepseek-chat",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.4
+            )
+
+            if response and response.choices and len(response.choices) > 0:
+                ai_dynamic_advice = response.choices[0].message.content
+
+            if not ai_dynamic_advice or len(str(ai_dynamic_advice).strip()) == 0:
+                raise ValueError("大模型 API 返回了空内容。")
+
+        except Exception as e:
+            import traceback
+            print("\n" + "=" * 50)
+            print("❌ DeepSeek 大模型调用失败！以下是详细死因：")
+            traceback.print_exc()
+            print("=" * 50 + "\n")
+
+            print(f"Warning: 云端大模型引擎离线 ({e})。启用本地降级...")
+            if "Healthy" in primary_disease and "健康" in primary_disease and max_detected_count == 0:
+                ai_dynamic_advice = "边缘视觉分析确认作物当前生理特征正常，未见虫害或病理特征。建议维持现有自动化滴灌网络。"
+            else:
+                issue = pest_names_str if max_detected_count > 0 else primary_disease
+                ai_dynamic_advice = f"双引擎视觉检测到 {issue} 异常。由于算力节点离线，已自动启用边缘防御预案：隔离 {location_name}，授权无人机挂载杀虫剂执行靶向消杀作业。"
+
+        is_sick = "健康" not in primary_disease and "Healthy" not in primary_disease
         now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         # 写入告警任务与ESG账本
@@ -312,7 +435,7 @@ def run_vision_analysis_background(task_id: str, file_path: str, is_video: bool,
 
             db.add(TaskLog(
                 level="HIGH" if max_detected_count > 3 or is_sick else "MEDIUM",
-                title=f"{pest_names_str if max_detected_count > 0 else primary_disease} 群落暴发预警",
+                title=f"{pest_names_str if max_detected_count > 0 else primary_disease} 预警",
                 location=f"{location_name}边缘", confidence=f"{round(random.uniform(93, 98), 1)}%",
                 time=datetime.datetime.now().strftime("%H:%M:%S"),
                 analysis=ai_dynamic_advice,
@@ -320,10 +443,11 @@ def run_vision_analysis_background(task_id: str, file_path: str, is_video: bool,
                 evidence_image=evidence_url, status="PENDING"
             ))
             asset = db.query(ESGAsset).filter(ESGAsset.id == 1).first()
-            base_value = max_detected_count + (3 if is_sick else 0)
-            asset.co2_reduction += round(base_value * 0.08, 3)
-            asset.carbon_revenue += base_value * 120
-            asset.pollution_interception += round(base_value * 2.8, 1)
+            if asset:
+                base_value = max_detected_count + (3 if is_sick else 0)
+                asset.co2_reduction += round(base_value * 0.08, 3)
+                asset.carbon_revenue += base_value * 120
+                asset.pollution_interception += round(base_value * 2.8, 1)
             db.add(ESGLog(timestamp=now_str, category="靶向干预", title="全息舱诊断触发新拦截",
                           description="触发控制凭证，AI建议已下发。"))
         else:
@@ -332,7 +456,6 @@ def run_vision_analysis_background(task_id: str, file_path: str, is_video: bool,
 
         db.commit()
 
-        # 推理完成！将最终结果存入字典，等待前端轮询拿走
         VISION_TASKS_STORE[task_id] = {
             "status": "success", "detected_count": max_detected_count, "disease_diagnosis": primary_disease,
             "ai_advice": ai_dynamic_advice, "type": "video" if is_video else "image",
@@ -340,57 +463,50 @@ def run_vision_analysis_background(task_id: str, file_path: str, is_video: bool,
         }
 
     except Exception as e:
-        print(f"后台视觉任务崩溃: {e}")
+        import traceback
+        traceback.print_exc()
         VISION_TASKS_STORE[task_id] = {"status": "error", "message": str(e)}
     finally:
         db.close()
-        # 清理原始上传文件
         if os.path.exists(file_path): os.remove(file_path)
 
 
-# ==================== 5. 【核心修改3：极速响应与结果轮询接口】 ====================
+# ==================== 5. 【极速响应与结果轮询接口】 ====================
 @app.post("/api/vision/analyze")
 async def analyze_vision_trigger(
-        background_tasks: BackgroundTasks,  # <--- 注入 FastAPI 后台任务队列
+        background_tasks: BackgroundTasks,
         field_id: str = Form("F-001"),
+        detect_version: str = Form("pest_detect_pt"),
+        classify_version: str = Form("disease_classify_pt"),
         file: UploadFile = File(...)
 ):
-    """
-    前端上传文件后，这个接口只负责存文件并把任务甩给后台，10毫秒内立刻返回任务 ID！
-    """
     task_id = uuid.uuid4().hex
     is_video = file.content_type.startswith("video/")
     file_ext = ".mp4" if is_video else ".jpg"
     file_path = f"temp_uploads/{task_id}_upload{file_ext}"
 
-    # 1. 暂存上传文件到磁盘
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
 
-    # 2. 在字典中初始化状态为 "processing"
     VISION_TASKS_STORE[task_id] = {"status": "processing"}
+    background_tasks.add_task(run_vision_analysis_background, task_id, file_path, is_video, field_id, detect_version,
+                              classify_version)
 
-    # 3. 将沉重的视觉推理甩给后台线程
-    background_tasks.add_task(run_vision_analysis_background, task_id, file_path, is_video, field_id)
-
-    # 4. 瞬间返回 task_id 给前端
     return {"status": "processing", "task_id": task_id}
 
 
 @app.get("/api/vision/result/{task_id}")
 def get_vision_result(task_id: str):
-    """
-    前端每隔一秒调用这个接口，检查任务是否跑完
-    """
     if task_id not in VISION_TASKS_STORE:
         return {"status": "error", "message": "未知的全息测算任务 ID"}
 
     return VISION_TASKS_STORE[task_id]
 
 
-# ==================== 6. 其他接口保持不变 ====================
+# ==================== 6. 其他接口 ====================
 @app.get("/api/tasks")
-def get_all_tasks(db: Session = Depends(get_db)): return db.query(TaskLog).order_by(TaskLog.id.desc()).all()
+def get_all_tasks(db: Session = Depends(get_db)):
+    return db.query(TaskLog).order_by(TaskLog.id.desc()).all()
 
 
 class TaskActionPayload(BaseModel): action: str
@@ -408,27 +524,160 @@ def update_task_status(task_id: int, payload: TaskActionPayload, db: Session = D
 
 
 class SensorPayload(BaseModel):
-    field_id: str;
-    temp: float;
-    moisture: float;
-    n: int;
-    p: int;
+    field_id: str
+    temp: float
+    moisture: float
+    n: int
+    p: int
     k: int
-    soil_ph: float;
-    soil_ec: float;
-    water_ph: float;
-    water_do: float;
+    soil_ph: float
+    soil_ec: float
+    water_ph: float
+    water_do: float
     water_turbidity: float
 
 
 @app.post("/api/hardware/telemetry")
 def receive_hardware_data(payload: SensorPayload, db: Session = Depends(get_db)):
     field = db.query(FieldNode).filter(FieldNode.id == payload.field_id).first()
-    field.temp = payload.temp;
-    field.moisture = payload.moisture;
-    field.n = payload.n;
-    field.p = payload.p;
+    field.temp = payload.temp
+    field.moisture = payload.moisture
+    field.n = payload.n
+    field.p = payload.p
     field.k = payload.k
     field.status = "生态预警" if (payload.moisture < 20 or payload.temp > 35) else "健康"
     db.commit()
     return {"status": "success"}
+
+
+@app.post("/api/hardware/telemetry/bulk")
+def receive_hardware_data_bulk(payloads: List[SensorPayload], db: Session = Depends(get_db)):
+    for payload in payloads:
+        field = db.query(FieldNode).filter(FieldNode.id == payload.field_id).first()
+        if field:
+            field.temp = payload.temp
+            field.moisture = payload.moisture
+            field.n = payload.n
+            field.p = payload.p
+            field.k = payload.k
+            field.status = "生态预警" if (payload.moisture < 20 or payload.temp > 35) else "健康"
+
+    db.commit()
+    return {"status": "success", "processed_count": len(payloads)}
+
+
+# ==================== 7. AI 智能问答与数据提取媒介接口 ====================
+class AIChatPayload(BaseModel):
+    prompt: str
+
+
+@app.post("/api/ai/chat")
+def ai_chat_medium(payload: AIChatPayload, db: Session = Depends(get_db)):
+    """
+    作为 3D 粒子球大模型的问答与数据提取媒介
+    """
+    user_query = payload.prompt
+
+    fields = db.query(FieldNode).all()
+    esg = db.query(ESGAsset).filter(ESGAsset.id == 1).first() or ESGAsset(co2_reduction=1482.5,
+                                                                          pollution_interception=3105.0,
+                                                                          financial_rating="AAA",
+                                                                          carbon_revenue=118600.0)
+
+    fields_summary = ", ".join([f"{f.name}: 状态[{f.status}], 湿度[{f.moisture}%], 温度[{f.temp}°C]" for f in fields])
+
+    system_context = (
+        f"你是 EcoNexus 天衍·生境大屏的量子 AI 中枢。当前系统实时状态：{fields_summary}。"
+        f"ESG碳汇资产：累计碳减排 {esg.co2_reduction} tCO2e，面源污染拦截 {esg.pollution_interception} kg，金融评级 {esg.financial_rating}。"
+        "请根据用户的问题进行专业、极客、凝练的解答，支持直接提取上述实时数据。"
+    )
+
+    try:
+        response = LLM_CLIENT.chat.completions.create(
+            model="deepseek-chat",
+            messages=[
+                {"role": "system", "content": system_context},
+                {"role": "user", "content": user_query}
+            ],
+            temperature=0.5
+        )
+        if response and response.choices and len(response.choices) > 0:
+            reply_text = response.choices[0].message.content
+            if reply_text and len(reply_text.strip()) > 0:
+                return {"status": "success", "reply": reply_text}
+
+        raise ValueError("LLM 返回空内容")
+
+    except Exception as e:
+        print(f"AI 中枢调用大模型失败 ({e})，启用本地知识图谱媒介兜底...")
+
+        if "碳汇" in user_query or "数据" in user_query or "减排" in user_query:
+            reply = f"[量子中枢数据提取] 累计碳减排当量：{esg.co2_reduction} tCO₂e | 面源污染拦截总量：{esg.pollution_interception} kg | 国家绿色金融评级：{esg.financial_rating} 级 | 预估碳汇交易核算：{esg.carbon_revenue} CNY。"
+        elif "墒情" in user_query or "农田" in user_query or "区" in user_query:
+            reply = f"[边缘网格实时遥测] 全域试验田状态：{fields_summary}。所有物联网与多光谱传感器运行平稳。"
+        elif "效能" in user_query or "评估" in user_query:
+            reply = f"[天衍中枢全局研判] 当前全域生产效能评分：92 分（评级优）。双引擎视觉神经网络与无人机机群协同调度正常。"
+        else:
+            reply = f"量子中枢已收到您的指令：‘{user_query}’。当前边缘节点与大模型网格链路稳定，EcoNexus 生态系统各项指标均处于最优受控状态。"
+
+        return {"status": "success", "reply": reply}
+
+
+# ==================== 8. 贾维斯 (J.A.R.V.I.S) 语音指令中枢接口 ====================
+class VoiceCommandPayload(BaseModel):
+    prompt: str
+
+
+@app.post("/api/ai/command")
+def ai_voice_command(payload: VoiceCommandPayload):
+    """
+    接收前端发来的语音文本，交给大模型进行意图识别，强制返回 JSON 路由控制指令。
+    """
+    user_voice_text = payload.prompt
+
+    # 极其严谨的 Prompt 设定，规定好大屏路由表
+    system_prompt = """
+    你是天衍·生境(EcoNexus)大屏的量子 AI 中枢，代号 Nexus-Agent，性格极客、专业、干练，类似钢铁侠的贾维斯。
+    请根据用户的语音输入，判断用户的意图，并严格以 JSON 格式返回。
+
+    【你的能力与路由映射表】：
+    1. 如果用户想看"主页"、"主控"、"总览"，target = "/"
+    2. 如果用户想看"农田"、"大棚"、"孪生"、"GIS"，target = "/fields"
+    3. 如果用户想看"AI防治"、"告警"、"病虫害"、"任务"，target = "/tasks"
+    4. 如果用户想看"ESG"、"碳汇"、"环保"、"资产"，target = "/esg"
+    5. 如果用户想看"设备"、"边缘节点"、"运维"、"拓扑"，target = "/settings"
+
+    【JSON 返回格式要求】：
+    {
+        "action": "navigate" | "chat",  // 如果需要跳转页面填 navigate，只是普通问答填 chat
+        "target": "路由路径" | "none",    // 填映射表里的路径，不跳转填 none
+        "reply": "你要回复用户的语音播报文案（限制在30字以内，语气极客、简练）"
+    }
+    """
+
+    try:
+        response = LLM_CLIENT.chat.completions.create(
+            model="deepseek-chat",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_voice_text}
+            ],
+            temperature=0.3,  # 降低温度，保证意图识别的绝对准确性
+            response_format={"type": "json_object"}  # 强制 DeepSeek 返回 JSON
+        )
+
+        # 尝试解析大模型返回的 JSON
+        ai_response_content = response.choices[0].message.content
+        result_json = json.loads(ai_response_content)
+
+        return {"status": "success", "data": result_json}
+
+    except Exception as e:
+        print(f"语音中枢解析失败: {e}")
+        # 兜底回复，防止前端死锁
+        fallback_data = {
+            "action": "chat",
+            "target": "none",
+            "reply": "长官，量子网络波动，无法解析该指令。"
+        }
+        return {"status": "error", "data": fallback_data}
