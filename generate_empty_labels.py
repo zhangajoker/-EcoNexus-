@@ -5,10 +5,10 @@ from pathlib import Path
 # 1. 配置你的害虫数据集路径 (请根据实际情况微调)
 # ==========================================
 # 这里放你刚刚拷进去的“纯病害叶片（无虫）”图片的文件夹
-IMAGE_DIR = Path(r"C:\Users\admin\PycharmProjects\-EcoNexus-\datasets\pests_data\train\images")
+IMAGE_DIR = Path(r"D:\-EcoNexus-\ai_training\datasets\pests_data\train\images")
 
 # 这里是对应的标签文件夹（脚本会在这里面自动生成空 txt）
-LABEL_DIR = Path(r"C:\Users\admin\PycharmProjects\-EcoNexus-\datasets\pests_data\train\labels")
+LABEL_DIR = Path(r"D:\-EcoNexus-\ai_training\datasets\pests_data\train\labels")
 
 print("🚀 天衍·负样本空标签全自动生成器启动...")
 

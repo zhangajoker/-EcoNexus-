@@ -1,25 +1,34 @@
-# backend/app/routers/tasks.py
-from fastapi import APIRouter
-from app.schemas import TaskAction
+"""AI task log list + approve/discard actions (moved from main.py).
 
-router = APIRouter()
+Fix: acting on a nonexistent task id now returns 404 instead of crashing
+with a 500 (``None`` attribute access).
+"""
 
-@router.get("/pending")
-async def get_active_pest_tasks():
-    """读取边缘 YOLOv8 实时拦截上报的病虫害高危任务"""
-    return [
-        {
-            "id": 1, "pest": "稻飞虱群", "location": "Node-A (03田块)",
-            "conf": "0.97", "level": "高", "time": "10:42:01",
-            "recommendation": "启动 T40 无人机进行靶向边缘喷洒"
-        }
-    ]
+import datetime
 
-@router.post("/{task_id}/execute")
-async def trigger_hardware_action(task_id: int, payload: TaskAction):
-    """边缘控制闭环：接收前端指派命令，模拟下发硬件执行"""
-    print(f"[硬件链路控制中...] 收到控制令 -> 针对任务 {task_id} 执行: {payload.action}")
-    return {
-        "status": "SUCCESS",
-        "gateway_response": f"指令 [{payload.action}] 已通过 LoRa 网关成功下发至现场执行单元。"
-    }
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+
+from app.database import get_db
+from app.models import ESGLog, TaskLog
+from app.schemas import TaskActionPayload
+
+router = APIRouter(prefix="/api/tasks", tags=["tasks"])
+
+
+@router.get("")
+def get_all_tasks(db: Session = Depends(get_db)):
+    return db.query(TaskLog).order_by(TaskLog.id.desc()).all()
+
+
+@router.post("/{task_id}/action")
+def update_task_status(task_id: int, payload: TaskActionPayload, db: Session = Depends(get_db)):
+    task = db.query(TaskLog).filter(TaskLog.id == task_id).first()
+    if task is None:
+        raise HTTPException(status_code=404, detail="Task not found")
+    task.status = payload.action
+    action_chinese = "批准AI调控" if payload.action == "APPROVED" else "忽略并丢弃警报"
+    db.add(ESGLog(timestamp=datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), category="闭环控制",
+                  title=f"控制台人工介入 [{action_chinese}]", description=f"人工执行了 [{action_chinese}]。"))
+    db.commit()
+    return {"status": "success"}

@@ -212,3 +212,5 @@ frontend/dist/
 # AI Training
 ai_training/datasets/
 ai_training/runs/
+backend/static/
+backend/*.bak
