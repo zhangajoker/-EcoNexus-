@@ -1,7 +1,12 @@
 """SQLAlchemy models. Column definitions are unchanged from the original
-single-file implementation; only their location moved."""
+single-file implementation; only their location moved.
 
-from sqlalchemy import Column, Float, Integer, String
+Added 2026-11-16 (foundations): TelemetryLog (append-only telemetry
+history; FieldNode keeps only the latest values) and VisionTask
+(persisted vision analysis results; previously in-memory only).
+"""
+
+from sqlalchemy import Column, Float, Integer, String, Text
 
 from app.database import Base
 
@@ -59,3 +64,49 @@ class TaskLog(Base):
     action_name = Column(String)
     evidence_image = Column(String)
     status = Column(String, default="PENDING")
+
+
+class TelemetryLog(Base):
+    """One row per accepted telemetry report, newest last.
+
+    FieldNode keeps only the latest values (the dashboard's live view);
+    this table is the history behind it, for trend charts and later
+    robot patrol analysis. Timestamps are server receipt time, in the
+    same "%Y-%m-%d %H:%M:%S" format used elsewhere in the codebase.
+    """
+
+    __tablename__ = "telemetry_logs"
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    field_id = Column(String, index=True)
+    timestamp = Column(String)
+    temp = Column(Float)
+    moisture = Column(Float)
+    n = Column(Integer)
+    p = Column(Integer)
+    k = Column(Integer)
+    soil_ph = Column(Float)
+    soil_ec = Column(Float)
+    water_ph = Column(Float)
+    water_do = Column(Float)
+    water_turbidity = Column(Float)
+    status = Column(String)
+
+
+class VisionTask(Base):
+    """Persisted vision analysis result, keyed by the task id handed out
+    by POST /api/vision/analyze.
+
+    The in-memory VISION_TASKS_STORE stays the fast path; this row is
+    the write-through copy, so GET /api/vision/result keeps working
+    after a backend restart. result_json holds the exact response dict
+    (including the base64 annotated image for image tasks).
+    """
+
+    __tablename__ = "vision_tasks"
+    task_id = Column(String, primary_key=True, index=True)
+    field_id = Column(String)
+    media_type = Column(String)
+    status = Column(String)
+    result_json = Column(Text)
+    created_at = Column(String)
+    updated_at = Column(String)

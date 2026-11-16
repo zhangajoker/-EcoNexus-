@@ -76,6 +76,13 @@ LLM_API_KEY = os.getenv("LLM_API_KEY", "")
 LLM_BASE_URL = os.getenv("LLM_BASE_URL", "https://api.deepseek.com/v1")
 LLM_MODEL = os.getenv("LLM_MODEL", "deepseek-chat")
 
+# Public base URL used when building evidence (image/video) URLs.
+# Override with the machine's LAN address (e.g. http://192.168.1.10:8000)
+# so phones and robots on the LAN can open the links; the default keeps
+# the previous loopback behaviour. Trailing slashes are stripped.
+PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "http://127.0.0.1:8000").rstrip("/")
+
+
 # NOTE: the coordinates below are Beijing's (kept verbatim from the original
 # code to preserve behaviour). The frontend does not call this endpoint; it
 # fetches Open-Meteo directly with browser geolocation.

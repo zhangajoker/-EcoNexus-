@@ -53,6 +53,12 @@ npm run dev
 
 - `backend/.env`：`DATABASE_URL`、`LLM_API_KEY`、`LLM_BASE_URL`、`LLM_MODEL`。
   Key 只放这里，绝不写进代码；`.env` 已被 git 忽略。
+- `PUBLIC_BASE_URL`（可选）：证据图片/视频 URL 的对外基地址，默认
+  `http://127.0.0.1:8000`。局域网内的手机/机器人要能打开证据链接时，改
+  为本机局域网地址（如 `http://192.168.1.10:8000`），并用
+  `--host 0.0.0.0` 启动后端。
+- 新增接口：`GET /api/hardware/telemetry/history?field_id=F-001&limit=100`
+  查遥测历史（最新的在前）；视觉任务结果已写入数据库，重启后仍可查询。
 - `frontend/.env.development`：`VITE_API_BASE_URL`（后端地址，默认
   `http://127.0.0.1:8000`），各页面通过 `src/config.ts` 统一引用。
 

@@ -12,22 +12,25 @@ Moved verbatim from the original ``main.py`` except for two fixes:
 
 import base64
 import datetime
+import json
 import os
 import traceback
 
 import cv2
 
-from app.config import LLM_MODEL, MODEL_PATHS, STATIC_DIR
+from app.config import LLM_MODEL, MODEL_PATHS, PUBLIC_BASE_URL, STATIC_DIR
 from app.database import SessionLocal
 from app.llm import LLM_CLIENT
-from app.models import ESGAsset, ESGLog, FieldNode, TaskLog
+from app.models import ESGAsset, ESGLog, FieldNode, TaskLog, VisionTask
 from ultralytics import YOLO
 
 print("Initializing YOLOv8 Model Zoo...")
 
 _model_cache = {}
 
-# In-memory vision task results, keyed by task id (as before: not persisted).
+# In-memory vision task results, keyed by task id. Mirrored into the
+# VisionTask table (write-through) so results survive a restart; the
+# in-memory store stays the fast path.
 VISION_TASKS_STORE = {}
 
 TRANSLATE_DICT = {
@@ -76,6 +79,26 @@ def get_model(model_name: str):
         print(f"[模型调度] 正在加载模型至硬件缓存: {model_name} (任务类型: {task_type})")
         _model_cache[model_name] = YOLO(path, task=task_type)
     return _model_cache[model_name]
+
+
+def _persist_vision_task(db, task_id: str, field_id: str, is_video: bool, result: dict) -> None:
+    """Mirror a vision task result into the VisionTask table (write-through).
+
+    The in-memory store stays the fast path; GET /api/vision/result falls
+    back to this row when the process restarted and memory is empty.
+    The caller commits the session.
+    """
+    now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    row = db.query(VisionTask).filter(VisionTask.task_id == task_id).first()
+    payload = json.dumps(result, ensure_ascii=False)
+    if row is None:
+        db.add(VisionTask(task_id=task_id, field_id=field_id, media_type="video" if is_video else "image",
+                          status=result.get("status", ""), result_json=payload, created_at=now_str,
+                          updated_at=now_str))
+    else:
+        row.status = result.get("status", "")
+        row.result_json = payload
+        row.updated_at = now_str
 
 
 def run_vision_analysis_background(task_id: str, file_path: str, is_video: bool, field_id: str,
@@ -139,7 +162,7 @@ def run_vision_analysis_background(task_id: str, file_path: str, is_video: bool,
 
             cap.release()
             out.release()
-            evidence_url = f"http://127.0.0.1:8000/static/{out_file}"
+            evidence_url = f"{PUBLIC_BASE_URL}/static/{out_file}"
             if disease_counter:
                 primary_disease = max(disease_counter, key=disease_counter.get)
             pest_names_str = ", ".join(sorted(detected_classes)) if detected_classes else "无"
@@ -243,7 +266,7 @@ def run_vision_analysis_background(task_id: str, file_path: str, is_video: bool,
             out_img_file = f"{task_id}_annotated.jpg"
             if not is_video:
                 cv2.imwrite(str(STATIC_DIR / out_img_file), annotated_img)
-                evidence_url = f"http://127.0.0.1:8000/static/{out_img_file}"
+                evidence_url = f"{PUBLIC_BASE_URL}/static/{out_img_file}"
 
             db.add(TaskLog(
                 level="HIGH" if max_detected_count > 3 or is_sick else "MEDIUM",
@@ -268,15 +291,25 @@ def run_vision_analysis_background(task_id: str, file_path: str, is_video: bool,
 
         db.commit()
 
-        VISION_TASKS_STORE[task_id] = {
+        result = {
             "status": "success", "detected_count": max_detected_count, "disease_diagnosis": primary_disease,
             "ai_advice": ai_dynamic_advice, "type": "video" if is_video else "image",
             "image_data": f"data:image/jpeg;base64,{img_base64}" if not is_video else None, "video_url": evidence_url
         }
+        _persist_vision_task(db, task_id, field_id, is_video, result)
+        db.commit()
+        VISION_TASKS_STORE[task_id] = result
 
     except Exception as e:
         traceback.print_exc()
-        VISION_TASKS_STORE[task_id] = {"status": "error", "message": str(e)}
+        error_result = {"status": "error", "message": str(e)}
+        try:
+            db.rollback()
+            _persist_vision_task(db, task_id, field_id, is_video, error_result)
+            db.commit()
+        except Exception:
+            traceback.print_exc()
+        VISION_TASKS_STORE[task_id] = error_result
     finally:
         db.close()
         if os.path.exists(file_path):
