@@ -191,6 +191,7 @@
 <script setup>
 import { ref, onMounted, nextTick, onUnmounted } from 'vue';
 import * as echarts from 'echarts';
+import { API_BASE } from '../../config';
 import html2pdf from 'html2pdf.js';
 
 const trendChartRef = ref(null);
@@ -216,7 +217,7 @@ const formatNumber = (num, decimals = 2) => {
 
 const fetchEsgDashboardData = async () => {
   try {
-    const response = await fetch('http://127.0.0.1:8000/api/esg/dashboard');
+    const response = await fetch(`${API_BASE}/api/esg/dashboard`);
     if (!response.ok) return;
     const data = await response.json();
 

@@ -224,8 +224,9 @@ import { useRouter } from 'vue-router';
 import axios from 'axios';
 import * as THREE from 'three';
 import * as echarts from 'echarts';
+import { API_BASE } from '../../config';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
+
 const router = useRouter();
 
 // ==========================================

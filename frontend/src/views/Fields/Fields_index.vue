@@ -337,6 +337,7 @@ import * as echarts from 'echarts';
 
 // ======================= 本地图片导入 =======================
 import localFieldImg from './field.jpg';
+import { API_BASE } from '../../config';
 
 // ======================= 基础状态变量 =======================
 const store = useEcoStore();
@@ -567,7 +568,7 @@ const uploadToYOLOv8 = async (event) => {
   formData.append('field_id', selectedField.value?.id || 'F-001');
 
   try {
-    const response = await fetch('http://127.0.0.1:8000/api/vision/analyze', {
+    const response = await fetch(`${API_BASE}/api/vision/analyze`, {
       method: 'POST',
       body: formData
     });
@@ -589,7 +590,7 @@ const uploadToYOLOv8 = async (event) => {
 
 const pollVisionResult = async (taskId) => {
     try {
-        const res = await fetch(`http://127.0.0.1:8000/api/vision/result/${taskId}`);
+        const res = await fetch(`${API_BASE}/api/vision/result/${taskId}`);
         const data = await res.json();
 
         if (data.status === 'processing') {

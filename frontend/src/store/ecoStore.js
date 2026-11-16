@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia';
+import { API_BASE } from '../config';
 
 export const useEcoStore = defineStore('eco', {
   state: () => ({
@@ -11,7 +12,7 @@ export const useEcoStore = defineStore('eco', {
       // 如果 30 秒内拉过数据，就不再重复拉取，直接用缓存
       if (Date.now() - this.lastFetched < 30000) return;
       try {
-        const res = await fetch('http://127.0.0.1:8000/api/fields');
+        const res = await fetch(`${API_BASE}/api/fields`);
         this.fields = await res.json();
         this.lastFetched = Date.now();
       } catch (e) {

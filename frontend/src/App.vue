@@ -109,8 +109,9 @@ import { ref, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import axios from 'axios';
 import EcoLogo from '@/components/EcoLogo.vue';
+import { API_BASE } from './config';
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
+
 const router = useRouter();
 
 // ====================================================
